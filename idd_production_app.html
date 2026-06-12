@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IDD Digital Production — Kay Lim Construction</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+:root{
+  --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a;
+  --border:#2e3350; --text:#e2e8f0; --muted:#6b7280;
+  --teal:#0d9488; --teal-dim:#0d948844; --teal-text:#2dd4bf;
+  --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --blue:#3b82f6; --purple:#a855f7;
+  --radius:10px; --card-pad:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+a{color:inherit;text-decoration:none}
+
+/* ── Layout ── */
+.shell{display:flex;width:100%;min-height:100vh}
+.sidebar{width:230px;min-width:230px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0 0 24px}
+.main{flex:1;overflow-y:auto;padding:28px 32px}
+@media(max-width:768px){.sidebar{position:fixed;left:-230px;top:0;height:100%;z-index:200;transition:.25s}.sidebar.open{left:0}.main{padding:16px}}
+
+/* ── Sidebar ── */
+.logo{padding:20px 20px 12px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.logo-title{font-size:14px;font-weight:700;color:var(--teal-text);letter-spacing:.5px}
+.logo-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.nav-group{padding:6px 20px 4px;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;font-size:13px;color:var(--muted);border-left:3px solid transparent;transition:.15s}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--teal-text);background:var(--teal-dim);border-left-color:var(--teal)}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:1px 6px;min-width:18px;text-align:center}
+.hamburger{display:none;position:fixed;top:12px;left:12px;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;color:var(--text)}
+@media(max-width:768px){.hamburger{display:flex}}
+
+/* ── Page header ── */
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.ph-left .pt{font-size:20px;font-weight:700}
+.ph-left .ps{font-size:13px;color:var(--muted);margin-top:3px}
+.pill{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.5px}
+.pill-idd{background:#0d948822;color:var(--teal-text);border:1px solid #0d948855}
+.pill-status{padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600}
+
+/* ── Sections ── */
+.tab-section{display:none}
+.tab-section.active{display:block}
+
+/* ── KPI grid ── */
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.grid4{grid-template-columns:1fr}}
+.mc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad)}
+.ml{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500}
+.mv{font-size:28px;font-weight:700}
+.ms{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* ── Chart grid ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+@media(max-width:700px){.grid2{grid-template-columns:1fr}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad)}
+.chart-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:14px}
+.chart-wrap{position:relative;height:200px}
+
+/* ── Table ── */
+.tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px}
+.tcard-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px}
+.tcard-title{font-size:14px;font-weight:600}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+input.search{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;width:200px;outline:none}
+input.search:focus{border-color:var(--teal)}
+select.flt{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;cursor:pointer}
+select.flt:focus{border-color:var(--teal)}
+.t{width:100%;border-collapse:collapse}
+.t th{padding:10px 16px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.t td{padding:11px 16px;font-size:13px;border-bottom:1px solid var(--border)}
+.t tr:last-child td{border-bottom:none}
+.t tr:hover td{background:var(--surface2)}
+.t tr.clickable{cursor:pointer}
+.tw{overflow-x:auto}
+
+/* ── Status badges ── */
+.s-badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600}
+.s-not_started{background:#1f2937;color:#9ca3af}
+.s-in_production{background:#1e3a5f;color:#93c5fd}
+.s-pending_qc{background:#3b2f00;color:#fbbf24}
+.s-qc_passed{background:#14532d;color:#4ade80}
+.s-ncr_open{background:#450a0a;color:#fca5a5}
+.s-ready_delivery{background:#1a2e4a;color:#60a5fa}
+.s-delivered{background:#1a1a2e;color:#a78bfa}
+
+/* ── Buttons ── */
+.btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.15s}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover{background:#0f766e}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-danger{background:#450a0a;color:#fca5a5;border:1px solid #ef444433}
+.btn-danger:hover{background:#ef444422}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ── Element detail ── */
+.detail-header{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad);margin-bottom:16px}
+.detail-id{font-size:22px;font-weight:700;font-family:monospace;color:var(--teal-text);margin-bottom:6px}
+.detail-meta{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.detail-meta span strong{color:var(--text)}
+
+/* ── Status stepper ── */
+.stepper{display:flex;gap:0;margin-bottom:24px;overflow-x:auto;padding-bottom:4px}
+.step{flex:1;min-width:90px;text-align:center;position:relative}
+.step::after{content:'';position:absolute;top:14px;left:50%;width:100%;height:2px;background:var(--border);z-index:0}
+.step:last-child::after{display:none}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;position:relative;z-index:1;transition:.2s}
+.step-label{font-size:10px;color:var(--muted);margin-top:5px;display:block}
+.step.done .step-dot{background:var(--teal);border-color:var(--teal);color:#fff}
+.step.done::after{background:var(--teal)}
+.step.active .step-dot{border-color:var(--teal);color:var(--teal-text);box-shadow:0 0 0 4px var(--teal-dim)}
+.step.ncr .step-dot{background:var(--red);border-color:var(--red);color:#fff}
+
+/* ── Checklist ── */
+.checklist{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.cl-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.cl-row:last-child{border-bottom:none}
+.cl-code{font-family:monospace;font-size:11px;font-weight:700;color:var(--muted);min-width:36px}
+.cl-desc{flex:1;font-size:13px;min-width:160px}
+.cl-actions{display:flex;gap:6px}
+.cl-btn{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:.15s}
+.cl-btn:hover{color:var(--text)}
+.cl-btn.pass.active{background:#14532d;color:#4ade80;border-color:#22c55e44}
+.cl-btn.fail.active{background:#450a0a;color:#fca5a5;border-color:#ef444444}
+.cl-btn.na.active{background:#1f2937;color:#9ca3af;border-color:#6b728044}
+.cl-result{font-size:11px;font-weight:600}
+.cl-result.pass{color:var(--green)}
+.cl-result.fail{color:var(--red)}
+.cl-result.na{color:var(--muted)}
+.progress-bar-wrap{background:var(--surface2);border-radius:99px;height:6px;overflow:hidden;flex:1;min-width:80px}
+.progress-bar{height:100%;border-radius:99px;background:var(--teal);transition:.3s}
+
+/* ── NCR card ── */
+.ncr-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad);margin-bottom:12px}
+.ncr-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.ncr-no{font-family:monospace;font-size:12px;font-weight:700;color:var(--amber)}
+.sev-minor{color:var(--amber)}
+.sev-major{color:var(--red)}
+.sev-critical{color:#dc2626;font-weight:700}
+.ncr-body{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:10px}
+.ncr-meta{font-size:11px;color:var(--muted)}
+
+/* ── QR ── */
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.qr-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.qr-canvas{background:#fff;padding:8px;border-radius:6px}
+.qr-label{font-size:11px;font-weight:600;font-family:monospace;color:var(--text);text-align:center}
+.qr-status{font-size:10px;color:var(--muted)}
+
+/* ── Scanner ── */
+#scanner-region{width:100%;max-width:400px;margin:0 auto 20px;border-radius:var(--radius);overflow:hidden;border:2px solid var(--teal)}
+.scanner-result{background:var(--surface);border:1px solid var(--teal);border-radius:var(--radius);padding:16px;margin-top:16px;display:none}
+
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:#00000099;z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:16px}
+.form-row{margin-bottom:14px}
+.form-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;display:block}
+.form-input,.form-select,.form-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;font-family:inherit}
+.form-textarea{min-height:80px;resize:vertical}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--teal)}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 20px;font-size:13px;font-weight:600;z-index:1000;display:none;align-items:center;gap:10px;box-shadow:0 8px 32px #0008}
+.toast.show{display:flex}
+.toast.success{border-color:var(--teal);color:var(--teal-text)}
+.toast.error{border-color:var(--red);color:#fca5a5}
+
+/* ── Misc ── */
+.empty{padding:48px 24px;text-align:center;color:var(--muted);font-size:14px}
+.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;margin-bottom:16px;padding:6px 0}
+.back-btn:hover{color:var(--text)}
+.divider{height:1px;background:var(--border);margin:20px 0}
+.section-title{font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text)}
+.tag{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11px;padding:2px 8px;color:var(--muted)}
+
+/* ── Live indicator ── */
+.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);margin-right:5px;transition:.3s}
+.live-dot.connected{background:var(--green);box-shadow:0 0 6px var(--green)}
+.live-dot.disconnected{background:var(--red)}
+.live-label{font-size:11px;color:var(--muted)}
+.live-bar{display:flex;align-items:center;padding:8px 20px;border-top:1px solid var(--border);margin-top:auto}
+
+/* ── Activity feed ── */
+.activity-feed{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;z-index:900;pointer-events:none;align-items:center}
+.activity-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;color:var(--text);box-shadow:0 4px 16px #0006;animation:slideUp .3s ease;white-space:nowrap}
+.activity-item.fade-out{animation:fadeOut .5s ease forwards}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeOut{from{opacity:1}to{opacity:0}}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.stat-row:last-child{border-bottom:none}
+.stat-label{color:var(--muted)}
+.stat-value{font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- Mobile hamburger -->
+<button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<div class="shell">
+<!-- ── SIDEBAR ── -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-title">🏗 IDD Digital Production</div>
+    <div class="logo-sub">HDB BSS S77 · Use Case #6</div>
+  </div>
+  <div class="nav-group">Overview</div>
+  <div class="nav-item active" onclick="nav('dashboard',this)"><span>📊</span><span>Dashboard</span></div>
+  <div class="nav-group">Production</div>
+  <div class="nav-item" onclick="nav('elements',this)"><span>🧱</span><span>Element Register</span></div>
+  <div class="nav-item" id="nav-ncr" onclick="nav('ncrs',this)"><span>⚠️</span><span>NCR Register</span><span class="nav-badge" id="ncr-badge">0</span></div>
+  <div class="nav-group">Field Tools</div>
+  <div class="nav-item" onclick="nav('scanner',this)"><span>📷</span><span>QR Scanner</span></div>
+  <div class="nav-item" data-tab="qrcodes" onclick="nav('qrcodes',this)"><span>⬛</span><span>QR Codes</span></div>
+  <div class="live-bar">
+    <span class="live-dot disconnected" id="live-dot"></span>
+    <span class="live-label" id="live-label">Connecting…</span>
+  </div>
+</nav>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+<!-- ═══════════ DASHBOARD ═══════════ -->
+<section id="tab-dashboard" class="tab-section active">
+  <div class="ph">
+    <div class="ph-left"><div class="pt">Production Dashboard</div><div class="ps">Real-time factory tracking · PPVC & Precast elements</div></div>
+    <span class="pill pill-idd">● IDD QWC1 · Use Case #6</span>
+  </div>
+  <div class="grid4">
+    <div class="mc"><div class="ml">Total Elements</div><div class="mv" id="kpi-total">—</div><div class="ms">All blocks combined</div></div>
+    <div class="mc"><div class="ml">QC Passed + Ready</div><div class="mv" style="color:var(--green)" id="kpi-passed">—</div><div class="ms" id="kpi-pct">—</div></div>
+    <div class="mc"><div class="ml">In Production / Pending QC</div><div class="mv" style="color:var(--blue)" id="kpi-inprod">—</div><div class="ms">Active fabrication</div></div>
+    <div class="mc"><div class="ml">Open NCRs</div><div class="mv" style="color:var(--red)" id="kpi-ncr">—</div><div class="ms">Require resolution</div></div>
+  </div>
+  <div class="grid2">
+    <div class="chart-card"><div class="chart-title">Production Status Breakdown</div><div class="chart-wrap"><canvas id="ch-status"></canvas></div></div>
+    <div class="chart-card"><div class="chart-title">Weekly Output (Planned vs Actual)</div><div class="chart-wrap"><canvas id="ch-weekly"></canvas></div></div>
+    <div class="chart-card"><div class="chart-title">Cumulative Progress</div><div class="chart-wrap"><canvas id="ch-cumul"></canvas></div></div>
+    <div class="chart-card"><div class="chart-title">Elements by Type</div><div class="chart-wrap"><canvas id="ch-type"></canvas></div></div>
+  </div>
+  <div id="last-updated" style="font-size:11px;color:var(--muted);text-align:right"></div>
+</section>
+
+<!-- ═══════════ ELEMENT REGISTER ═══════════ -->
+<section id="tab-elements" class="tab-section">
+  <div class="ph">
+    <div class="ph-left"><div class="pt">Element Register</div><div class="ps">All precast / PPVC elements · Click to inspect</div></div>
+    <div class="controls">
+      <input class="search" id="el-search" placeholder="Search ID or batch…" oninput="filterElements()"/>
+      <select class="flt" id="el-status" onchange="filterElements()">
+        <option value="">All Status</option>
+        <option value="not_started">Not Started</option>
+        <option value="in_production">In Production</option>
+        <option value="pending_qc">Pending QC</option>
+        <option value="qc_passed">QC Passed</option>
+        <option value="ncr_open">NCR Open</option>
+        <option value="ready_delivery">Ready for Delivery</option>
+        <option value="delivered">Delivered</option>
+      </select>
+      <select class="flt" id="el-block" onchange="filterElements()">
+        <option value="">All Blocks</option>
+        <option>Blk 301A</option><option>Blk 301B</option><option>Blk 302</option>
+      </select>
+    </div>
+  </div>
+  <div class="tcard">
+    <div class="tw">
+      <table class="t">
+        <thead><tr>
+          <th>Element ID</th><th>Type</th><th>Block / Level</th><th>Batch</th>
+          <th>Status</th><th>Planned Date</th><th>Checklist</th><th>NCRs</th>
+        </tr></thead>
+        <tbody id="el-tbody"></tbody>
+      </table>
+    </div>
+    <div id="el-empty" class="empty" style="display:none">No elements match the current filters.</div>
+  </div>
+</section>
+
+<!-- ═══════════ ELEMENT DETAIL ═══════════ -->
+<section id="tab-detail" class="tab-section">
+  <div class="back-btn" onclick="nav('elements', document.querySelector('.nav-item:nth-child(5)'))">← Back to Register</div>
+  <div id="detail-content">Loading…</div>
+</section>
+
+<!-- ═══════════ NCR REGISTER ═══════════ -->
+<section id="tab-ncrs" class="tab-section">
+  <div class="ph">
+    <div class="ph-left"><div class="pt">NCR Register</div><div class="ps">Non-Conformance Reports · Factory quality issues</div></div>
+    <div class="controls">
+      <select class="flt" id="ncr-filter" onchange="renderNCRs()">
+        <option value="">All NCRs</option>
+        <option value="open">Open</option>
+        <option value="in_progress">In Progress</option>
+        <option value="closed">Closed</option>
+      </select>
+    </div>
+  </div>
+  <div id="ncr-list"></div>
+</section>
+
+<!-- ═══════════ QR SCANNER ═══════════ -->
+<section id="tab-scanner" class="tab-section">
+  <div class="ph"><div class="ph-left"><div class="pt">QR Code Scanner</div><div class="ps">Scan element tag to open production record</div></div></div>
+  <div style="max-width:480px">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Point your camera at an element QR code. The app will open the element record immediately for status update or inspection.</p>
+    <div id="scanner-region"></div>
+    <div style="text-align:center;margin-bottom:16px">
+      <button class="btn btn-primary" id="scan-btn" onclick="startScanner()">📷 Start Camera Scan</button>
+      <button class="btn btn-secondary" id="stop-btn" onclick="stopScanner()" style="display:none">⏹ Stop Scanner</button>
+    </div>
+    <div class="scanner-result" id="scan-result">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Scanned element:</div>
+      <div id="scan-id" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--teal-text);margin-bottom:12px"></div>
+      <button class="btn btn-primary" onclick="goToScannedElement()">Open Element Record →</button>
+    </div>
+    <div style="margin-top:24px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Or enter Element ID manually:</div>
+      <div style="display:flex;gap:8px">
+        <input class="search" id="manual-id" placeholder="e.g. B301A-L01-WP-001" style="flex:1"/>
+        <button class="btn btn-primary" onclick="goToManualElement()">Open</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ QR CODES ═══════════ -->
+<section id="tab-qrcodes" class="tab-section">
+  <div class="ph">
+    <div class="ph-left"><div class="pt">QR Code Sheet</div><div class="ps">Print and affix to precast elements at factory</div></div>
+    <div class="controls">
+      <select class="flt" id="qr-block" onchange="renderQRCodes()">
+        <option value="Blk 301A">Blk 301A</option><option value="Blk 301B">Blk 301B</option><option value="Blk 302">Blk 302</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨 Print</button>
+    </div>
+  </div>
+  <div id="qr-grid" class="qr-grid"></div>
+</section>
+
+</main>
+</div><!-- end shell -->
+
+<!-- ── MODALS ── -->
+<!-- Status update modal -->
+<div class="modal-overlay" id="status-modal">
+  <div class="modal">
+    <div class="modal-title">Update Element Status</div>
+    <div class="form-row">
+      <label class="form-label">Element</label>
+      <div id="sm-elem-id" style="font-family:monospace;font-size:14px;color:var(--teal-text);font-weight:700"></div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">New Status</label>
+      <select class="form-select" id="sm-status">
+        <option value="not_started">Not Started</option>
+        <option value="in_production">In Production</option>
+        <option value="pending_qc">Pending QC</option>
+        <option value="qc_passed">QC Passed</option>
+        <option value="ncr_open">NCR Open</option>
+        <option value="ready_delivery">Ready for Delivery</option>
+        <option value="delivered">Delivered</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Updated by</label>
+      <input class="form-input" id="sm-by" placeholder="Your name" value="Site Engineer"/>
+    </div>
+    <div class="btn-group" style="margin-top:8px">
+      <button class="btn btn-primary" onclick="submitStatusUpdate()">Update Status</button>
+      <button class="btn btn-secondary" onclick="closeModal('status-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Raise NCR modal -->
+<div class="modal-overlay" id="ncr-modal">
+  <div class="modal">
+    <div class="modal-title">⚠️ Raise New NCR</div>
+    <div class="form-row">
+      <label class="form-label">Element</label>
+      <div id="nm-elem-id" style="font-family:monospace;font-size:14px;color:var(--teal-text);font-weight:700"></div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Non-Conformance Description</label>
+      <textarea class="form-textarea" id="nm-desc" placeholder="Describe the non-conformance observed…"></textarea>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Location on Element</label>
+      <input class="form-input" id="nm-loc" placeholder="e.g. North face, 1.2m from base"/>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Severity</label>
+      <select class="form-select" id="nm-sev">
+        <option value="minor">Minor</option>
+        <option value="major" selected>Major</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Raised by</label>
+      <input class="form-input" id="nm-by" placeholder="Your name" value="QC Inspector"/>
+    </div>
+    <div class="btn-group" style="margin-top:8px">
+      <button class="btn btn-danger" onclick="submitNCR()">Raise NCR</button>
+      <button class="btn btn-secondary" onclick="closeModal('ncr-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Close NCR modal -->
+<div class="modal-overlay" id="close-ncr-modal">
+  <div class="modal">
+    <div class="modal-title">Close NCR</div>
+    <input type="hidden" id="cnm-id"/>
+    <div class="form-row">
+      <label class="form-label">Corrective Action Taken</label>
+      <textarea class="form-textarea" id="cnm-action" placeholder="Describe the corrective action and verification…"></textarea>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Closed by</label>
+      <input class="form-input" id="cnm-by" placeholder="Your name" value="QC Manager"/>
+    </div>
+    <div class="btn-group" style="margin-top:8px">
+      <button class="btn btn-primary" onclick="submitCloseNCR()">Close NCR</button>
+      <button class="btn btn-secondary" onclick="closeModal('close-ncr-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Activity feed (real-time events from other users) -->
+<div class="activity-feed" id="activity-feed"></div>
+
+<script>
+// ─── Config ──────────────────────────────────────────────────────────────────
+// Derive base URL from current page — works on any host, not just localhost
+const BASE = window.location.origin;
+const API  = BASE + '/api/production';
+
+// Auth token injected by the server into <meta name="idd-token">
+const IDD_TOKEN = document.querySelector('meta[name="idd-token"]')?.content || '';
+
+// Current user — stored in localStorage, prompted once on first visit
+let currentUser = localStorage.getItem('idd_user') || '';
+if (!currentUser) {
+  currentUser = (prompt('Enter your name for the QC audit trail:') || 'Anonymous').trim().slice(0, 100);
+  localStorage.setItem('idd_user', currentUser);
+}
+
+let allElements      = [];
+let currentElementId = null;
+let scannerInstance  = null;
+let scannedId        = null;
+
+// ─── Nav ──────────────────────────────────────────────────────────────────────
+function nav(name, el) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById('tab-' + name);
+  if (sec) sec.classList.add('active');
+  if (el) el.classList.add('active');
+  document.querySelector('.sidebar')?.classList.remove('open');
+  if (name === 'elements') { loadElements(); return; }
+  if (name === 'ncrs')     { renderNCRs(); return; }
+  if (name === 'qrcodes')  { renderQRCodes(); return; }
+}
+
+// ─── Status helpers ───────────────────────────────────────────────────────────
+const STATUS_LABELS = {
+  not_started:'Not Started', in_production:'In Production',
+  pending_qc:'Pending QC', qc_passed:'QC Passed',
+  ncr_open:'NCR Open', ready_delivery:'Ready for Delivery', delivered:'Delivered'
+};
+function badge(status) {
+  return `<span class="s-badge s-${status}">${STATUS_LABELS[status]||status}</span>`;
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = type === 'success' ? '✓ ' + msg : '✕ ' + msg;
+  t.className = `toast show ${type}`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── HTML escape helper — apply to ALL server-supplied text in innerHTML ────
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+let chStatus, chWeekly, chCumul, chType;
+
+async function loadDashboard() {
+  const d = await tryFetch('/dashboard', null);
+  if (!d) { console.error('Dashboard fetch failed'); return; }
+  document.getElementById('kpi-total').textContent = d.total;
+  document.getElementById('kpi-passed').textContent = d.passed;
+  document.getElementById('kpi-pct').textContent = `${d.completionRate}% complete`;
+  document.getElementById('kpi-inprod').textContent = d.inProd + d.pendingQC;
+  document.getElementById('kpi-ncr').textContent = d.openNCRs;
+  document.getElementById('ncr-badge').textContent = d.openNCRs;
+  document.getElementById('last-updated').textContent = 'Last updated: ' + new Date(d.lastUpdated).toLocaleString('en-SG');
+
+  const C = (s) => getComputedStyle(document.documentElement).getPropertyValue(s).trim();
+
+  // Status doughnut
+  const sLabels = ['QC Passed','Ready for Del.','Delivered','In Production','Pending QC','NCR Open','Not Started'];
+  const sData   = [d.byStatus.qc_passed||0, d.byStatus.ready_delivery||0, d.byStatus.delivered||0,
+                   d.byStatus.in_production||0, d.byStatus.pending_qc||0, d.byStatus.ncr_open||0, d.byStatus.not_started||0];
+  const sColors = ['#22c55e','#3b82f6','#a855f7','#60a5fa','#fbbf24','#ef4444','#4b5563'];
+  if (!chStatus) {
+    chStatus = new Chart(document.getElementById('ch-status'), {
+      type:'doughnut',
+      data:{labels:sLabels, datasets:[{data:sData, backgroundColor:sColors, borderWidth:0}]},
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#9ca3af', boxWidth:10, padding:8, font:{size:11}}}}}
+    });
+  } else { chStatus.data.datasets[0].data = sData; chStatus.update(); }
+
+  // Weekly bar
+  const wk = d.weeks;
+  if (!chWeekly) {
+    chWeekly = new Chart(document.getElementById('ch-weekly'), {
+      type:'bar',
+      data:{
+        labels: wk.map(w=>w.label),
+        datasets:[
+          {label:'Planned', data:wk.map(w=>w.planned), backgroundColor:'#3b82f644', borderColor:'#3b82f6', borderWidth:1},
+          {label:'Actual',  data:wk.map(w=>w.actual),  backgroundColor:'#0d9488aa', borderColor:'#0d9488', borderWidth:1},
+        ]
+      },
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},
+        scales:{x:{ticks:{color:'#6b7280'},grid:{color:'#2e3350'}}, y:{ticks:{color:'#6b7280'},grid:{color:'#2e3350'}}}}
+    });
+  } else { chWeekly.data.datasets[0].data=wk.map(w=>w.planned); chWeekly.data.datasets[1].data=wk.map(w=>w.actual); chWeekly.update(); }
+
+  // Cumulative line
+  if (!chCumul) {
+    chCumul = new Chart(document.getElementById('ch-cumul'), {
+      type:'line',
+      data:{
+        labels: wk.map(w=>w.label),
+        datasets:[
+          {label:'Planned', data:d.cumul.planned, borderColor:'#3b82f6', backgroundColor:'#3b82f622', tension:.4, fill:true},
+          {label:'Actual',  data:d.cumul.actual,  borderColor:'#0d9488', backgroundColor:'#0d948822', tension:.4, fill:true},
+        ]
+      },
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},
+        scales:{x:{ticks:{color:'#6b7280'},grid:{color:'#2e3350'}}, y:{ticks:{color:'#6b7280'},grid:{color:'#2e3350'}}}}
+    });
+  }
+
+  // By type
+  const typeLabels = Object.keys(d.byType);
+  const typeData   = Object.values(d.byType);
+  if (!chType) {
+    chType = new Chart(document.getElementById('ch-type'), {
+      type:'bar',
+      data:{labels:typeLabels, datasets:[{data:typeData, backgroundColor:['#0d9488','#3b82f6','#a855f7','#f59e0b','#22c55e'], borderWidth:0}]},
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'#2e3350'}}, y:{ticks:{color:'#6b7280'},grid:{color:'#2e3350'}}}}
+    });
+  }
+}
+
+// ─── Element Register ─────────────────────────────────────────────────────────
+async function loadElements() {
+  const els = await tryFetch('/elements', []);
+  allElements = els;
+  renderElements(els);
+}
+
+function filterElements() {
+  const q   = document.getElementById('el-search').value.toLowerCase();
+  const st  = document.getElementById('el-status').value;
+  const blk = document.getElementById('el-block').value;
+  const filtered = allElements.filter(e =>
+    (!q   || e.id.toLowerCase().includes(q) || e.batch.toLowerCase().includes(q)) &&
+    (!st  || e.status === st) &&
+    (!blk || e.block === blk)
+  );
+  renderElements(filtered);
+}
+
+function renderElements(els) {
+  const tbody = document.getElementById('el-tbody');
+  const empty = document.getElementById('el-empty');
+  if (els.length === 0) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = els.map(e => {
+    const cp = e.checklistProgress;
+    const bar = cp.total ? `<div style="display:flex;align-items:center;gap:6px"><div class="progress-bar-wrap"><div class="progress-bar" style="width:${cp.pct}%"></div></div><span style="font-size:11px;color:var(--muted)">${cp.done}/${cp.total}</span></div>` : '<span style="color:var(--muted);font-size:11px">—</span>';
+    return `<tr class="clickable" data-element-id="${esc(e.id)}" onclick="openElement('${e.id}')">
+      <td><span style="font-family:monospace;font-size:12px;font-weight:600;color:var(--teal-text)">${esc(e.id)}</span></td>
+      <td><span class="tag">${esc(e.type)}</span></td>
+      <td>${esc(e.block)} · ${esc(e.level)}</td>
+      <td style="font-family:monospace;font-size:12px">${esc(e.batch)}</td>
+      <td>${badge(e.status)}</td>
+      <td style="font-size:12px;color:var(--muted)">${e.plannedDate}</td>
+      <td>${bar}</td>
+      <td>${e.ncrCount > 0 ? `<span style="color:var(--red);font-weight:700">⚠ ${e.ncrCount}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Element Detail ───────────────────────────────────────────────────────────
+async function openElement(id) {
+  currentElementId = id;
+  nav('detail', null);
+  const el = await tryFetch(`/elements/${encodeURIComponent(id)}`, null);
+  if (!el) { document.getElementById('detail-content').innerHTML = '<div class="empty">Element not found.</div>'; return; }
+  renderDetail(el);
+}
+
+const STATUS_STEPS = ['not_started','in_production','pending_qc','qc_passed','ready_delivery','delivered'];
+
+function renderDetail(el) {
+  const stepIdx  = STATUS_STEPS.indexOf(el.status);
+  const isNCR    = el.status === 'ncr_open';
+
+  const steps = STATUS_STEPS.map((s, i) => {
+    let cls = i < (isNCR ? STATUS_STEPS.indexOf('pending_qc') : stepIdx) ? 'done' :
+              (el.status === s ? (isNCR && s === 'pending_qc' ? 'ncr' : 'active') : '');
+    return `<div class="step ${cls}"><div class="step-dot">${i + 1}</div><span class="step-label">${STATUS_LABELS[s]||s}</span></div>`;
+  }).join('');
+
+  const rows = el.checklist.map(item => {
+    const passActive = item.result === 'pass'  ? 'active' : '';
+    const failActive = item.result === 'fail'  ? 'active' : '';
+    const naActive   = item.result === 'na'    ? 'active' : '';
+    return `<div class="cl-row" data-id="${item.id}">
+      <span class="cl-code">${item.code}</span>
+      <span class="cl-desc">${item.description}</span>
+      <div class="cl-actions">
+        <button class="cl-btn pass ${passActive}" onclick="setCheckItem('${el.id}','${item.id}','pass')">✓ Pass</button>
+        <button class="cl-btn fail ${failActive}" onclick="setCheckItem('${el.id}','${item.id}','fail')">✗ Fail</button>
+        <button class="cl-btn na ${naActive}"   onclick="setCheckItem('${el.id}','${item.id}','na')">N/A</button>
+      </div>
+      ${item.checkedBy ? `<span class="cl-result ${item.result||''}">${esc((item.result||'').toUpperCase())} · ${esc(item.checkedBy)}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  const ncrCards = el.ncrs.length ? el.ncrs.map(n => `
+    <div class="ncr-card">
+      <div class="ncr-header">
+        <span class="ncr-no">${esc(n.ncrNo)}</span>
+        <span class="s-badge ${n.status==='closed'?'s-qc_passed':'s-ncr_open'}">${esc(n.status)}</span>
+        <span class="sev-${n.severity}">${esc(n.severity.toUpperCase())}</span>
+      </div>
+      <div class="ncr-body">${esc(n.description)}</div>
+      ${n.location ? `<div class="ncr-meta">📍 ${esc(n.location)}</div>` : ''}
+      <div class="ncr-meta" style="margin-top:4px">Raised by ${esc(n.raisedBy)} · ${new Date(n.raisedAt).toLocaleDateString('en-SG')}</div>
+      ${n.correctiveAction ? `<div style="font-size:13px;color:var(--green);margin-top:8px">✓ Corrective action: ${esc(n.correctiveAction)}</div>` : ''}
+      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="openCloseNCR('${n.id}')">Close NCR</button></div>` : ''}
+    </div>`).join('') : '<div style="color:var(--muted);font-size:13px;padding:8px 0">No NCRs raised for this element.</div>';
+
+  const cp = el.checklist.filter(i => i.result !== null).length;
+  const pct = el.checklist.length ? Math.round(cp/el.checklist.length*100) : 0;
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-header">
+      <div class="detail-id">${esc(el.id)}</div>
+      <div class="detail-meta">
+        <span><strong>${esc(el.type)}</strong></span>
+        <span>${esc(el.block)} · ${esc(el.level)} · ${esc(el.position)}</span>
+        <span>Batch: <strong>${esc(el.batch)}</strong></span>
+        <span>Grade: <strong>${esc(el.concreteGrade)}</strong></span>
+        <span>Weight: <strong>${esc(el.weight)}</strong></span>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="openStatusModal('${el.id}','${el.status}')">Update Status</button>
+        <button class="btn btn-danger btn-sm" onclick="openNCRModal('${el.id}')">⚠ Raise NCR</button>
+        <button class="btn btn-secondary btn-sm" onclick="showQRFor('${el.id}')">⬛ Show QR</button>
+      </div>
+    </div>
+
+    <div class="section-title">Production Status</div>
+    <div class="stepper">${steps}</div>
+    ${isNCR ? `<div style="background:#450a0a22;border:1px solid #ef444444;border-radius:8px;padding:12px;margin-bottom:20px;font-size:13px;color:#fca5a5">⚠ NCR open — element on hold until non-conformance is resolved.</div>` : ''}
+
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div class="section-title" style="margin-bottom:0">QC Inspection Checklist</div>
+      <div style="font-size:12px;color:var(--muted)">${cp}/${el.checklist.length} checked · ${pct}%</div>
+    </div>
+    <div class="checklist">${rows}</div>
+    <div style="margin-bottom:8px"><button class="btn btn-primary btn-sm" onclick="submitChecklist('${el.id}')">Save Inspection</button></div>
+
+    <div class="divider"></div>
+    <div class="section-title">Non-Conformance Reports</div>
+    ${ncrCards}
+
+    <div class="divider"></div>
+    <div class="section-title">Status History</div>
+    <div class="tcard" style="margin-bottom:0">
+      <table class="t">
+        <thead><tr><th>From</th><th>To</th><th>By</th><th>At</th></tr></thead>
+        <tbody>
+          ${el.statusHistory.map(h=>`<tr><td>${h.from ? badge(h.from) : '—'}</td><td>${badge(h.to)}</td><td>${esc(h.by)}</td><td style="font-size:12px;color:var(--muted)">${new Date(h.at).toLocaleString('en-SG')}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// Inline checklist result state (before save)
+const pendingChecklist = {};
+function setCheckItem(elemId, itemId, result) {
+  if (!pendingChecklist[elemId]) pendingChecklist[elemId] = {};
+  pendingChecklist[elemId][itemId] = result;
+  // Update UI
+  const row = document.querySelector(`.cl-row[data-id="${itemId}"]`);
+  if (row) {
+    row.querySelectorAll('.cl-btn').forEach(b => b.classList.remove('active'));
+    const active = row.querySelector(`.cl-btn.${result}`);
+    if (active) active.classList.add('active');
+  }
+}
+
+async function submitChecklist(elemId) {
+  const pending = pendingChecklist[elemId];
+  if (!pending || Object.keys(pending).length === 0) { toast('No changes to save','error'); return; }
+  const items = Object.entries(pending).map(([id, result]) => ({id, result}));
+  const r = await apiFetch(`/elements/${encodeURIComponent(elemId)}/checklist`, 'PATCH', {items, checkedBy: currentUser});
+  if (r?.ok) {
+    delete pendingChecklist[elemId];
+    toast('Checklist saved');
+    openElement(elemId);
+  } else toast('Save failed','error');
+}
+
+// ─── Status modal ─────────────────────────────────────────────────────────────
+function openStatusModal(id, currentStatus) {
+  document.getElementById('sm-elem-id').textContent = id;
+  document.getElementById('sm-status').value = currentStatus;
+  document.getElementById('sm-by').value = currentUser;
+  document.getElementById('status-modal').classList.add('open');
+}
+
+async function submitStatusUpdate() {
+  const id = document.getElementById('sm-elem-id').textContent;
+  const status = document.getElementById('sm-status').value;
+  const by = document.getElementById('sm-by').value;
+  const r = await apiFetch(`/elements/${encodeURIComponent(id)}/status`, 'PATCH', {status, by});
+  if (r?.ok) {
+    closeModal('status-modal');
+    toast('Status updated to: ' + STATUS_LABELS[status]);
+    openElement(id);
+  } else toast('Update failed','error');
+}
+
+// ─── NCR modal ────────────────────────────────────────────────────────────────
+function openNCRModal(id) {
+  document.getElementById('nm-elem-id').textContent = id;
+  document.getElementById('nm-desc').value = '';
+  document.getElementById('nm-loc').value = '';
+  document.getElementById('nm-by').value = currentUser;
+  document.getElementById('ncr-modal').classList.add('open');
+}
+
+async function submitNCR() {
+  const id = document.getElementById('nm-elem-id').textContent;
+  const r = await apiFetch(`/elements/${encodeURIComponent(id)}/ncrs`, 'POST', {
+    description: document.getElementById('nm-desc').value,
+    location:    document.getElementById('nm-loc').value,
+    severity:    document.getElementById('nm-sev').value,
+    raisedBy:    document.getElementById('nm-by').value,
+  });
+  if (r?.ok) {
+    closeModal('ncr-modal');
+    toast('NCR raised: ' + r.ncr.ncrNo);
+    openElement(id);
+    loadDashboard();
+  } else toast('Failed to raise NCR','error');
+}
+
+function openCloseNCR(ncrId) {
+  document.getElementById('cnm-id').value = ncrId;
+  document.getElementById('cnm-action').value = '';
+  document.getElementById('cnm-by').value = currentUser;
+  document.getElementById('close-ncr-modal').classList.add('open');
+}
+
+async function submitCloseNCR() {
+  const id = document.getElementById('cnm-id').value;
+  const r = await apiFetch(`/ncrs/${id}`, 'PATCH', {
+    status:'closed',
+    correctiveAction: document.getElementById('cnm-action').value,
+    closedBy: document.getElementById('cnm-by').value,
+  });
+  if (r?.ok) {
+    closeModal('close-ncr-modal');
+    toast('NCR closed successfully');
+    openElement(currentElementId);
+    loadDashboard();
+  } else toast('Close failed','error');
+}
+
+// ─── NCR list view ────────────────────────────────────────────────────────────
+async function renderNCRs() {
+  const filter = document.getElementById('ncr-filter')?.value || '';
+  const url = filter ? `/ncrs?status=${filter}` : '/ncrs';
+  const ncrs = await tryFetch(url, []);
+  const el = document.getElementById('ncr-list');
+  if (!ncrs.length) { el.innerHTML = '<div class="empty">No NCRs found.</div>'; return; }
+  el.innerHTML = ncrs.map(n => `
+    <div class="ncr-card">
+      <div class="ncr-header">
+        <span class="ncr-no">${esc(n.ncrNo)}</span>
+        <span class="s-badge ${n.status==='closed'?'s-qc_passed':'s-ncr_open'}">${esc(n.status.replace('_',' '))}</span>
+        <span class="sev-${n.severity}">${esc(n.severity.toUpperCase())}</span>
+        <span style="margin-left:auto;font-size:12px;cursor:pointer;color:var(--teal-text)" onclick="openElement('${n.elementId}')">→ ${esc(n.elementId)}</span>
+      </div>
+      <div class="ncr-body">${esc(n.description)}</div>
+      <div class="ncr-meta">📍 ${esc(n.location||'—')} · Raised by ${esc(n.raisedBy)} · ${new Date(n.raisedAt).toLocaleDateString('en-SG')}</div>
+      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="openCloseNCR('${n.id}')">Close NCR</button></div>` : `<div style="font-size:13px;color:var(--green);margin-top:8px">✓ ${esc(n.correctiveAction)}</div>`}
+    </div>`).join('');
+}
+
+// ─── QR Codes ─────────────────────────────────────────────────────────────────
+function renderQRCodes() {
+  const block = document.getElementById('qr-block')?.value || 'Blk 301A';
+  const els   = allElements.filter(e => e.block === block).slice(0, 20);
+  if (!els.length) { document.getElementById('qr-grid').innerHTML = '<div class="empty">Load element register first.</div>'; return; }
+  document.getElementById('qr-grid').innerHTML = els.map(e => `
+    <div class="qr-item">
+      <div class="qr-canvas" id="qr-${e.id.replace(/[^a-z0-9]/gi,'_')}"></div>
+      <div class="qr-label">${e.id}</div>
+      <div class="qr-status">${STATUS_LABELS[e.status]||e.status}</div>
+    </div>`).join('');
+  els.forEach(e => {
+    const containerId = 'qr-' + e.id.replace(/[^a-z0-9]/gi,'_');
+    try {
+      new QRCode(document.getElementById(containerId), {
+        text: e.id, width:120, height:120,
+        colorDark:'#000', colorLight:'#fff', correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(err) { console.error('QR error', e.id, err); }
+  });
+}
+
+function showQRFor(id) {
+  nav('qrcodes', document.querySelector('.nav-item[data-tab="qrcodes"]'));
+  document.getElementById('qr-block').value = allElements.find(e=>e.id===id)?.block || 'Blk 301A';
+  renderQRCodes();
+}
+
+// ─── QR Scanner ───────────────────────────────────────────────────────────────
+function startScanner() {
+  document.getElementById('scan-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'inline-block';
+  document.getElementById('scan-result').style.display = 'none';
+  scannerInstance = new Html5Qrcode('scanner-region');
+  scannerInstance.start(
+    { facingMode: 'environment' },
+    { fps:10, qrbox:{width:220, height:220} },
+    (decodedText) => {
+      scannedId = decodedText.trim();
+      document.getElementById('scan-id').textContent = scannedId;
+      document.getElementById('scan-result').style.display = 'block';
+      stopScanner();
+    },
+    () => {}
+  ).catch(err => {
+    toast('Camera access denied. Use manual entry below.', 'error');
+    stopScanner();
+  });
+}
+
+function stopScanner() {
+  if (scannerInstance) {
+    scannerInstance.stop().catch(()=>{});
+    scannerInstance = null;
+  }
+  document.getElementById('scan-btn').style.display = 'inline-block';
+  document.getElementById('stop-btn').style.display = 'none';
+}
+
+function goToScannedElement() {
+  if (scannedId) openElement(scannedId);
+}
+
+function goToManualElement() {
+  const id = document.getElementById('manual-id').value.trim();
+  if (id) openElement(id);
+}
+
+// ─── Modal helpers ────────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); }));
+
+// ─── Fetch helpers ────────────────────────────────────────────────────────────
+async function tryFetch(path, fallback) {
+  try {
+    const r = await fetch(API + path);
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch(e) { console.error('Fetch error', path, e); return fallback; }
+}
+
+async function apiFetch(path, method, body) {
+  try {
+    const r = await fetch(API + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key':    IDD_TOKEN,
+      },
+      body: JSON.stringify(body)
+    });
+    if (r.status === 401) { console.error('Auth failed — is the server running with the same API_KEY?'); return null; }
+    return await r.json();
+  } catch(e) { console.error('API error', path, e); return null; }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadDashboard();
+loadElements();
+
+// ─── Real-time Socket.io ──────────────────────────────────────────────────────
+const socket = io(BASE, { transports: ['websocket','polling'], auth: { token: IDD_TOKEN } });
+
+// Live indicator
+const liveDot   = document.getElementById('live-dot');
+const liveLabel = document.getElementById('live-label');
+
+socket.on('connect', () => {
+  liveDot.className   = 'live-dot connected';
+  liveLabel.textContent = '● Live';
+  liveLabel.style.color = 'var(--green)';
+});
+socket.on('disconnect', () => {
+  liveDot.className   = 'live-dot disconnected';
+  liveLabel.textContent = 'Reconnecting…';
+  liveLabel.style.color = 'var(--muted)';
+});
+socket.on('connect_error', () => {
+  liveDot.className   = 'live-dot disconnected';
+  liveLabel.textContent = 'Offline';
+  liveLabel.style.color = 'var(--red)';
+});
+
+// Activity feed — shows events from OTHER users
+function showActivity(icon, msg) {
+  const feed = document.getElementById('activity-feed');
+  const el = document.createElement('div');
+  el.className = 'activity-item';
+  el.textContent = `${icon} ${msg}`;
+  feed.appendChild(el);
+  // Fade out after 4s, remove after 4.5s
+  setTimeout(() => el.classList.add('fade-out'), 4000);
+  setTimeout(() => el.remove(), 4500);
+  // Keep max 4 visible
+  while (feed.children.length > 4) feed.removeChild(feed.firstChild);
+}
+
+// element:updated — another user changed a status or checklist
+socket.on('element:updated', ({ id, status, by, checklistPct, updatedAt }) => {
+  // 1. Update element row in the register table without a full reload
+  const row = document.querySelector(`#el-tbody tr[data-element-id="${CSS.escape(id)}"]`);
+  if (row) {
+    const cells = row.querySelectorAll('td');
+    if (cells[4]) cells[4].innerHTML = badge(status);   // status cell
+  }
+
+  // 2. Sync in-memory allElements
+  const mem = allElements.find(e => e.id === id);
+  if (mem) { mem.status = status; mem.updatedAt = updatedAt; }
+
+  // 3. If we're viewing that element's detail, live-refresh it
+  const isDetailActive = document.getElementById('tab-detail').classList.contains('active');
+  if (isDetailActive && currentElementId === id) {
+    openElement(id);   // re-fetch + re-render
+  }
+
+  // 4. Activity message (skip if it was this tab that made the change — handled by toast)
+  showActivity('🔄', `${id} → ${STATUS_LABELS[status] || status}${by ? ' by ' + by : ''}`);
+});
+
+// ncr:raised
+socket.on('ncr:raised', ({ ncrNo, elementId, severity, raisedBy }) => {
+  const b = document.getElementById('ncr-badge');
+  if (b) b.textContent = parseInt(b.textContent || '0') + 1;
+  showActivity('⚠️', `${ncrNo} raised on ${elementId} [${severity}] by ${raisedBy}`);
+  if (document.getElementById('tab-ncrs').classList.contains('active')) renderNCRs();
+});
+
+// ncr:updated
+socket.on('ncr:updated', ({ ncrNo, status, elementId }) => {
+  if (status === 'closed') {
+    showActivity('✅', `${ncrNo} closed — ${elementId} back in queue`);
+    const b = document.getElementById('ncr-badge');
+    if (b) b.textContent = Math.max(0, parseInt(b.textContent || '0') - 1);
+  }
+  if (document.getElementById('tab-ncrs').classList.contains('active')) renderNCRs();
+});
+
+// dashboard:refresh
+socket.on('dashboard:refresh', function() {
+  if (document.getElementById('tab-dashboard').classList.contains('active')) loadDashboard();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "acc-dashboard-backend",
+  "version": "1.0.0",
+  "description": "ACC proxy backend for KLIM/Kay Lim construction dashboard",
+  "type": "module",
+  "main": "acc_backend_server.js",
+  "scripts": {
+    "start": "node acc_backend_server.js",
+    "dev": "node --watch acc_backend_server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0"
+  }
+}
