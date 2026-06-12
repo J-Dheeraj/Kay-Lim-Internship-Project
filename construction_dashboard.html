@@ -556,7 +556,7 @@ tr:last-child td{border-bottom:none}
 </section>
 <!-- ══════════════ UNICON: PROJECTS ══════════════ -->
 <section id="tab-uc-projects" class="tab-section">
-  <div class="ph"><div><div class="pt">Projects</div><div class="ps">UniCon · app.unicongroup.co · Company 6690a046…</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
+  <div class="ph"><div><div class="pt">Projects</div><div class="ps">UniCon · app.unicongroup.co · Company —</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Projects</div><div class="mv" id="ucpr-total">4</div></div>
     <div class="mc"><div class="ml">Active</div><div class="mv" style="color:var(--green)" id="ucpr-active">3</div></div>
@@ -745,7 +745,10 @@ tr:last-child td{border-bottom:none}
 
 </main>
 <script>
-const BACKEND='http://localhost:3001';
+const BACKEND = localStorage.getItem('backend_url') ||
+  (location.protocol.startsWith('http') ? `${location.protocol}//${location.hostname}:3001` : 'http://localhost:3001');
+/* HTML-escape — applied to all backend-supplied strings rendered via innerHTML */
+function esc(v){const d=document.createElement('div');d.textContent=String(v??'');return d.innerHTML;}
 const C=s=>getComputedStyle(document.documentElement).getPropertyValue(s).trim();
 async function tryFetch(p,fb){try{const r=await fetch(BACKEND+p);if(!r.ok)throw 0;return await r.json()}catch{return fb}}
 function setEl(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
@@ -771,7 +774,7 @@ function renderProjects(results){
   el.innerHTML=results.map(p=>{
     const bar=p.progress>=70?'var(--green)':p.progress>=40?'var(--blue)':'var(--amber)';
     const bc=p.status==='active'?'#eaf3de;color:#2e7d32':'#faeeda;color:#854f0b';
-    return'<div class="mc" style="padding:1rem"><div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><span style="font-weight:600;font-size:.86rem">'+p.name+'</span><span class="pill" style="background:'+bc+'">'+p.status+'</span></div><div class="pbw"><div class="pb" style="width:'+p.progress+'%;background:'+bar+'"></div></div><div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">'+p.progress+'% · '+(p.tasks?p.tasks.done+'/'+p.tasks.total:0)+' tasks · Due '+(p.dueDate||'—')+'</div></div>';
+    return'<div class="mc" style="padding:1rem"><div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><span style="font-weight:600;font-size:.86rem">'+esc(p.name)+'</span><span class="pill" style="background:'+bc+'">'+esc(p.status)+'</span></div><div class="pbw"><div class="pb" style="width:'+p.progress+'%;background:'+bar+'"></div></div><div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">'+p.progress+'% · '+(p.tasks?p.tasks.done+'/'+p.tasks.total:0)+' tasks · Due '+(p.dueDate||'—')+'</div></div>';
   }).join('');
 }
 
@@ -903,7 +906,7 @@ async function loadAll(){
     const tbody=document.querySelector('#rfi-table tbody');
     if(tbody)tbody.innerHTML=rfi.results.slice(0,8).map(r=>{
       const sc=r.status==='closed'?'#eaf3de;color:#2e7d32':r.status==='overdue'?'#fcebeb;color:#791f1f':'#faeeda;color:#854f0b';
-      return'<tr><td class="mono">'+(r.id||'—')+'</td><td>'+(r.subject||r.title||'—')+'</td><td>'+(r.discipline||'—')+'</td><td>'+(r.assignedTo||'—')+'</td><td><span class="pill" style="background:'+sc+'">'+r.status+'</span></td><td>'+(r.agedays||'—')+'d</td></tr>';
+            return'<tr><td class="mono">'+esc(r.id||'—')+'</td><td>'+esc(r.subject||r.title||'—')+'</td><td>'+esc(r.discipline||'—')+'</td><td>—</td><td>'+esc(r.assignedTo||'—')+'</td><td><span class="pill" style="background:'+sc+'">'+esc(r.status)+'</span></td><td>'+esc(r.dueDate||'—')+'</td><td>'+esc(r.agedays!=null?r.agedays+'d':'—')+'</td></tr>';
     }).join('');
   }
 
@@ -932,37 +935,37 @@ async function loadAll(){
   const ptw=await tryFetch('/api/qse/ptw',null);
   if(ptw&&ptw.results){
     const active=ptw.results.filter(p=>p.status==='active').length;
-    const expiring=ptw.results.filter(p=>p.status==='expiring-soon').length;
+    const expiring=ptw.results.filter(p=>p.status==='expiring').length;
     setEl('ov-ptw',active);setEl('ov-ptw-exp',expiring+' expiring soon');
     setEl('ptw-active',active);setEl('ptw-expiring',expiring);
     setEl('ptw-expired',ptw.results.filter(p=>p.status==='expired').length);
     const tbody=document.querySelector('#ptw-table tbody');
     if(tbody)tbody.innerHTML=ptw.results.slice(0,8).map(p=>{
-      const sc=p.status==='active'?'#eaf3de;color:#2e7d32':p.status==='expiring-soon'?'#faeeda;color:#854f0b':'#fcebeb;color:#791f1f';
-      return'<tr><td class="mono">'+(p.id||'—')+'</td><td>'+(p.type||'—')+'</td><td>'+(p.location||'—')+'</td><td>'+(p.issuedTo||'—')+'</td><td>'+(p.validFrom||'—')+'</td><td>'+(p.validTo||'—')+'</td><td><span class="pill" style="background:'+sc+'">'+p.status+'</span></td></tr>';
+      const sc=p.status==='active'?'#eaf3de;color:#2e7d32':p.status==='expiring'?'#faeeda;color:#854f0b':'#fcebeb;color:#791f1f';
+      return'<tr><td class="mono">'+esc(p.id||'—')+'</td><td>—</td><td>'+esc(p.work||'—')+'</td><td>'+esc(p.location||'—')+'</td><td>—</td><td>'+esc(p.issuer||'—')+'</td><td>—</td><td>'+esc(p.expiry||'—')+'</td><td><span class="pill" style="background:'+sc+'">'+esc(p.status)+'</span></td></tr>';
     }).join('');
   }
 
   /* ── QSE Inspections ── */
   const insp=await tryFetch('/api/qse/inspections',null);
   if(insp&&insp.results){
-    const pass=insp.results.filter(i=>i.result==='pass').length;
-    const fail=insp.results.filter(i=>i.result==='fail').length;
+    const pass=insp.results.filter(i=>(i.defects||0)===0).length;
+    const fail=insp.results.filter(i=>(i.defects||0)>0).length;
     setEl('qi-pass',pass);setEl('qi-fail',fail);setEl('qi-total',insp.results.length);
   }
 
   /* ── QSE Attendance ── */
   const att=await tryFetch('/api/qse/attendance',null);
   if(att){
-    setEl('ov-workers',att.today);setEl('ov-workers-sub','Peak: '+(att.peakThisWeek||att.today)+' this week');
-    setEl('att-today',att.today);setEl('att-peak',att.peakThisWeek||att.today);
+    setEl('ov-workers',att.todayTotal??att.today);setEl('ov-workers-sub','Peak: '+(att.peakThisWeek||att.today)+' this week');
+    setEl('att-today',att.todayTotal??att.today);setEl('att-peak',att.peakThisWeek||att.todayTotal||att.today);
   }
 
   /* ── UniCon Projects ── */
   const ucProj=await tryFetch('/api/unicon/projects',null);
   if(ucProj&&ucProj.results){
     renderProjects(ucProj.results);
-    setEl('ov-uc-proj',ucProj.results.filter(p=>p.status==='active').length);
+    setEl('ov-proj',ucProj.results.filter(p=>p.status==='active').length);
     if(chTaskProj){
       const done=ucProj.results.map(p=>p.tasks?p.tasks.done:0);
       chTaskProj.data.datasets[0].data=done;chTaskProj.update();
@@ -971,17 +974,17 @@ async function loadAll(){
 
   /* ── UniCon Tasks ── */
   const ucTask=await tryFetch('/api/unicon/tasks',null);
-  if(ucTask&&ucTask.results){
-    const comp=ucTask.results.filter(t=>t.status==='completed').length;
-    const active=ucTask.results.filter(t=>t.status==='in-progress').length;
-    const ovrd=ucTask.results.filter(t=>t.status==='overdue').length;
-    if(chTaskSt){chTaskSt.data.datasets[0].data=[comp,active,ovrd,ucTask.results.length-comp-active-ovrd];chTaskSt.update()}
+  if(ucTask&&(ucTask.results||ucTask.tasks)){const _t=ucTask.results||ucTask.tasks;
+    const comp=_t.filter(t=>t.status==='completed').length;
+    const active=_t.filter(t=>t.status==='inProgress'||t.status==='in-progress').length;
+    const ovrd=_t.filter(t=>t.status==='overdue').length;
+    if(chTaskSt){chTaskSt.data.datasets[0].data=[comp,active,ovrd,Math.max(0,_t.length-comp-active-ovrd)];chTaskSt.update()}
   }
 
   /* ── UniCon Budget ── */
   const ucBud=await tryFetch('/api/unicon/budget',null);
   if(ucBud&&ucBud.projects){
-    if(chBudUtil){chBudUtil.data.datasets[0].data=ucBud.projects.map(p=>p.utilisation);chBudUtil.update()}
+    if(chBudUtil){chBudUtil.data.datasets[0].data=ucBud.projects.map(p=>p.utilPct??p.utilisation??0);chBudUtil.update()}
   }
 
   /* ── IDD Digital Production ── */
@@ -1010,9 +1013,9 @@ async function loadAll(){
 
   /* ── Power BI reports list ── */
   const pbiRep=await tryFetch('/api/powerbi-reports',null);
-  if(pbiRep&&pbiRep.value){
+  if(pbiRep&&(pbiRep.reports||pbiRep.value)){const _r=pbiRep.reports||pbiRep.value;
     const container=document.getElementById('pbi-report-list');
-    if(container)container.innerHTML=pbiRep.value.map(r=>'<div onclick="loadPbiReport(\''+r.id+'\')" style="padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'#fff\'">📊 '+r.name+'</div>').join('');
+    if(container)container.innerHTML=_r.map(r=>'<div onclick="loadPbiReport(\''+esc(r.id)+'\')" style="padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'#fff\'">📊 '+esc(r.name)+'</div>').join('');
   }
 }
 loadAll();

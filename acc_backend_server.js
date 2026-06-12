@@ -17,49 +17,52 @@ import cors from 'cors';
 import 'dotenv/config';
 
 const app = express();
-app.use(cors());
+const ALLOWED = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001').split(',');
+app.use(cors({ origin: (o, cb) => (!o || ALLOWED.includes(o)) ? cb(null, true) : cb(new Error('CORS blocked: ' + o)) }));
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
+
+// fetch with timeout — a hung vendor API can no longer stall requests indefinitely
+async function fetchT(url, opts = {}, ms = 15000) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try { return await fetchT(url, { ...opts, signal: ctl.signal }); }
+  finally { clearTimeout(t); }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APS / ACC — 2-legged OAuth (token cache)
 // Docs: https://aps.autodesk.com/en/docs/oauth/v2/reference/http/gettoken/
 // ─────────────────────────────────────────────────────────────────────────────
 const APS_BASE   = 'https://developer.api.autodesk.com';
-const ACC_ACCOUNT = process.env.ACC_ACCOUNT_ID  || 'de5e91d2-e5bf-4bb3-91f6-7d352d818a3e';
-const ACC_PROJECT = process.env.ACC_PROJECT_ID  || '1b03bc74-070b-4e39-9676-ec227b041705';
+const ACC_ACCOUNT = process.env.ACC_ACCOUNT_ID  || 'your_acc_account_id';
+const ACC_PROJECT = process.env.ACC_PROJECT_ID  || 'your_acc_project_id';
 
-let _apsToken = null;
-let _apsExpiry = 0;
-
-async function getApsToken() {
-  if (_apsToken && Date.now() < _apsExpiry - 30_000) return _apsToken;
-
-  const id  = process.env.APS_CLIENT_ID;
-  const sec = process.env.APS_CLIENT_SECRET;
-  if (!id || !sec) throw new Error('APS_CLIENT_ID / APS_CLIENT_SECRET not set in .env');
-
-  const params = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: id,
-    client_secret: sec,
-    scope: 'data:read'
-  });
-
-  const res = await fetch(`${APS_BASE}/authentication/v2/token`, {
+// Shared client-credentials OAuth helper (used by APS + Power BI)
+async function oauthToken(cache, url, params, name) {
+  if (cache.token && Date.now() < cache.expiry - 30_000) return cache.token;
+  const res = await fetchT(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`APS auth failed ${res.status}: ${err}`);
-  }
+  if (!res.ok) throw new Error(`${name} auth failed ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  _apsToken  = data.access_token;
-  _apsExpiry = Date.now() + data.expires_in * 1000;
-  return _apsToken;
+  cache.token  = data.access_token;
+  cache.expiry = Date.now() + data.expires_in * 1000;
+  return cache.token;
+}
+
+const _apsCache = { token: null, expiry: 0 };
+
+async function getApsToken() {
+  const id  = process.env.APS_CLIENT_ID;
+  const sec = process.env.APS_CLIENT_SECRET;
+  if (!id || !sec) throw new Error('APS_CLIENT_ID / APS_CLIENT_SECRET not set in .env');
+  return oauthToken(_apsCache, `${APS_BASE}/authentication/v2/token`, new URLSearchParams({
+    grant_type: 'client_credentials', client_id: id, client_secret: sec, scope: 'data:read'
+  }), 'APS');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -71,37 +74,17 @@ async function getApsToken() {
 //   3. Power BI Admin portal → Tenant settings → enable "Allow service principals to use Power BI APIs" for that group
 //   4. Add the service principal as Member/Admin to the workspace
 // ─────────────────────────────────────────────────────────────────────────────
-let _pbiToken  = null;
-let _pbiExpiry = 0;
+const _pbiCache = { token: null, expiry: 0 };
 
 async function getPbiToken() {
-  if (_pbiToken && Date.now() < _pbiExpiry - 30_000) return _pbiToken;
-
   const tid = process.env.PBI_TENANT_ID;
   const cid = process.env.PBI_CLIENT_ID;
   const sec = process.env.PBI_CLIENT_SECRET;
   if (!tid || !cid || !sec) throw new Error('PBI_TENANT_ID / PBI_CLIENT_ID / PBI_CLIENT_SECRET not set in .env');
-
-  const params = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: cid,
-    client_secret: sec,
+  return oauthToken(_pbiCache, `https://login.microsoftonline.com/${tid}/oauth2/v2.0/token`, new URLSearchParams({
+    grant_type: 'client_credentials', client_id: cid, client_secret: sec,
     scope: 'https://analysis.windows.net/powerbi/api/.default'
-  });
-
-  const res = await fetch(`https://login.microsoftonline.com/${tid}/oauth2/v2.0/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`PBI auth failed ${res.status}: ${err}`);
-  }
-  const data = await res.json();
-  _pbiToken  = data.access_token;
-  _pbiExpiry = Date.now() + data.expires_in * 1000;
-  return _pbiToken;
+  }), 'PBI');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,7 +121,7 @@ app.get('/api/rfis', async (req, res) => {
   try {
     const token = await getApsToken();
     const url   = `${APS_BASE}/construction/issues/v1/projects/${ACC_PROJECT}/issues?limit=100&sortBy=-createdAt`;
-    const r     = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const r     = await fetchT(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) throw new Error(`ACC issues ${r.status}`);
     const data  = await r.json();
     // Normalise response: ACC returns {results:[...], pagination:{...}}
@@ -181,7 +164,7 @@ app.get('/api/defects', async (req, res) => {
     const token = await getApsToken();
     // Fetch open issues — the dashboard treats those with severity tags as defects
     const url   = `${APS_BASE}/construction/issues/v1/projects/${ACC_PROJECT}/issues?limit=50&filter[status]=open`;
-    const r     = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const r     = await fetchT(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) throw new Error(`ACC defects ${r.status}`);
     const data  = await r.json();
     const results = (data.results || []).map(i => ({
@@ -217,7 +200,7 @@ app.get('/api/qaqc', async (req, res) => {
   try {
     const token = await getApsToken();
     const url   = `${APS_BASE}/quality/v1/projects/${ACC_PROJECT}/checklistInstances?limit=50`;
-    const r     = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const r     = await fetchT(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) throw new Error(`ACC checklists ${r.status}`);
     const data  = await r.json();
     const results = (data.results || []).map(c => ({
@@ -319,7 +302,7 @@ app.get('/api/qse/inspections', async (_req, res) => {
   const key  = process.env.QSE_API_KEY;
   if (base && key) {
     try {
-      const r = await fetch(`${base}/api/v1/inspections`, {
+      const r = await fetchT(`${base}/api/v1/inspections`, {
         headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`QSE ${r.status}`);
@@ -344,7 +327,7 @@ app.get('/api/qse/safety', async (_req, res) => {
   const key  = process.env.QSE_API_KEY;
   if (base && key) {
     try {
-      const r = await fetch(`${base}/api/v1/safety/inspections`, {
+      const r = await fetchT(`${base}/api/v1/safety/inspections`, {
         headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`QSE Safety ${r.status}`);
@@ -378,7 +361,7 @@ app.get('/api/qse/ptw', async (_req, res) => {
   const key  = process.env.QSE_API_KEY;
   if (base && key) {
     try {
-      const r = await fetch(`${base}/api/v1/ptw/permits`, {
+      const r = await fetchT(`${base}/api/v1/ptw/permits`, {
         headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`QSE PTW ${r.status}`);
@@ -403,7 +386,7 @@ app.get('/api/qse/attendance', async (_req, res) => {
   const key  = process.env.QSE_API_KEY;
   if (base && key) {
     try {
-      const r = await fetch(`${base}/api/v1/attendance/workers`, {
+      const r = await fetchT(`${base}/api/v1/attendance/workers`, {
         headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`QSE Attendance ${r.status}`);
@@ -433,20 +416,20 @@ app.get('/api/qse/attendance', async (_req, res) => {
 //
 // UniCon is a Flutter-based app with no documented public API.
 // Contact UniCon support via https://app.unicongroup.co or support@unicongroup.co
-// to request API / webhook credentials for Kay Lim Company ID: 6690a0460761a515bfc9a2c1
+// to request API / webhook credentials for Kay Lim Company ID: your_unicon_company_id
 //
 // Once credentials are available, set in .env:
 //   UNICON_BASE_URL=https://app.unicongroup.co
 //   UNICON_API_KEY=<token from UniCon support>
-//   UNICON_COMPANY_ID=6690a0460761a515bfc9a2c1
+//   UNICON_COMPANY_ID=your_unicon_company_id
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/unicon/projects', async (_req, res) => {
   const base = process.env.UNICON_BASE_URL;
   const key  = process.env.UNICON_API_KEY;
-  const cid  = process.env.UNICON_COMPANY_ID || '6690a0460761a515bfc9a2c1';
+  const cid  = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
   if (base && key) {
     try {
-      const r = await fetch(`${base}/api/companies/${cid}/projects`, {
+      const r = await fetchT(`${base}/api/companies/${cid}/projects`, {
         headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`UniCon projects ${r.status}`);
@@ -467,10 +450,10 @@ app.get('/api/unicon/projects', async (_req, res) => {
 app.get('/api/unicon/tasks', async (_req, res) => {
   const base = process.env.UNICON_BASE_URL;
   const key  = process.env.UNICON_API_KEY;
-  const cid  = process.env.UNICON_COMPANY_ID || '6690a0460761a515bfc9a2c1';
+  const cid  = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
   if (base && key) {
     try {
-      const r = await fetch(`${base}/api/companies/${cid}/tasks`, {
+      const r = await fetchT(`${base}/api/companies/${cid}/tasks`, {
         headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`UniCon tasks ${r.status}`);
@@ -494,10 +477,10 @@ app.get('/api/unicon/tasks', async (_req, res) => {
 app.get('/api/unicon/budget', async (_req, res) => {
   const base = process.env.UNICON_BASE_URL;
   const key  = process.env.UNICON_API_KEY;
-  const cid  = process.env.UNICON_COMPANY_ID || '6690a0460761a515bfc9a2c1';
+  const cid  = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
   if (base && key) {
     try {
-      const r = await fetch(`${base}/api/companies/${cid}/budget`, {
+      const r = await fetchT(`${base}/api/companies/${cid}/budget`, {
         headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`UniCon budget ${r.status}`);
@@ -525,7 +508,7 @@ app.get('/api/powerbi-reports', async (_req, res) => {
   if (!wsId) return res.json(mock({ reports: [] }));
   try {
     const token = await getPbiToken();
-    const r = await fetch(`https://api.powerbi.com/v1.0/myorg/groups/${wsId}/reports`, {
+    const r = await fetchT(`https://api.powerbi.com/v1.0/myorg/groups/${wsId}/reports`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!r.ok) throw new Error(`PBI reports ${r.status}`);
@@ -555,14 +538,14 @@ app.get('/api/powerbi-embed', async (req, res) => {
   try {
     const token = await getPbiToken();
     // Step 1: Get report details (for embedUrl + datasetId)
-    const rptRes = await fetch(`https://api.powerbi.com/v1.0/myorg/groups/${wsId}/reports/${repId}`, {
+    const rptRes = await fetchT(`https://api.powerbi.com/v1.0/myorg/groups/${wsId}/reports/${repId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!rptRes.ok) throw new Error(`PBI report fetch ${rptRes.status}`);
     const rpt = await rptRes.json();
 
     // Step 2: Generate embed token (newer GenerateToken v2 API — supports multiple reports/datasets)
-    const tokenRes = await fetch(`https://api.powerbi.com/v1.0/myorg/GenerateToken`, {
+    const tokenRes = await fetchT(`https://api.powerbi.com/v1.0/myorg/GenerateToken`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -608,7 +591,7 @@ app.get('/api/idd/production', async (_req, res) => {
     try {
       const base = process.env.UNICON_BASE_URL || 'https://api.unicongroup.co';
       const cid  = process.env.UNICON_COMPANY_ID;
-      const r = await fetch(`${base}/api/companies/${cid}/idd/production`, {
+      const r = await fetchT(`${base}/api/companies/${cid}/idd/production`, {
         headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' }
       });
       if (r.ok) return res.json(await r.json());
@@ -655,7 +638,7 @@ app.get('/api/idd/logistics', async (_req, res) => {
     try {
       const base = process.env.UNICON_BASE_URL || 'https://api.unicongroup.co';
       const cid  = process.env.UNICON_COMPANY_ID;
-      const r = await fetch(`${base}/api/companies/${cid}/idd/logistics`, {
+      const r = await fetchT(`${base}/api/companies/${cid}/idd/logistics`, {
         headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' }
       });
       if (r.ok) return res.json(await r.json());

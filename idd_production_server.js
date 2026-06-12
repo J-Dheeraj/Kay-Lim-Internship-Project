@@ -89,7 +89,13 @@ app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
   res.send(html);
 });
-app.use(express.static(__dirname));   // other static assets
+// Static assets — block data files & backups (would leak the full QC/NCR DB)
+app.use((req, res, next) => {
+  if (/\.(json|env)$/i.test(req.path)) return res.status(404).end();
+  next();
+}, express.static(__dirname, { index: false }));
+// Serve the app HTML (with injected token) at its direct path too
+app.get('/idd_production_app.html', (_req, res) => res.redirect('/'));
 
 // ─── Validation helpers ───────────────────────────────────────────────────────
 const VALID_STATUSES   = new Set(['not_started','in_production','pending_qc',
@@ -437,7 +443,7 @@ app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, asyn
 });
 
 // ─── Close / update NCR ───────────────────────────────────────────────────────
-app.patch('/api/production/ncrs/:ncrId', async (req, res) => {
+app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, async (req, res) => {
   const ncr = db.ncrs.find(n => n.id === req.params.ncrId);
   if (!ncr) return res.status(404).json({ error:'NCR not found' });
 
@@ -446,7 +452,7 @@ app.patch('/api/production/ncrs/:ncrId', async (req, res) => {
     return res.status(400).json({ ok:false, error:'Invalid NCR status' });
 
   if (status) ncr.status = status;
-  if (correctiveAction) ncr.correctiveAction = String(correctiveAction).slice(0, 2000);
+  if (correctiveAction !== undefined) ncr.correctiveAction = str(correctiveAction, 2000) || ncr.correctiveAction;
   if (status === 'closed') {
     ncr.closedBy = str(closedBy, 100) || 'User';
     ncr.closedAt = new Date().toISOString();
@@ -480,7 +486,7 @@ app.get('/api/production/ncrs', (req, res) => {
 });
 
 // ─── Reset to seed (dev utility) ─────────────────────────────────────────────
-app.post('/api/production/reset', async (_req, res) => {
+app.post('/api/production/reset', requireAuth, mutationLimiter, async (_req, res) => {
   // Back up current data before wiping
   const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
   if (fs.existsSync(DATA_FILE)) fs.copyFileSync(DATA_FILE, backup);

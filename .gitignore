@@ -1,0 +1,5 @@
+node_modules/
+.env
+idd_data.json
+idd_data_backup_*.json
+*.log
