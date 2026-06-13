@@ -43,7 +43,8 @@ export function createStore(dbFile) {
       ncrNo  TEXT, description TEXT, severity TEXT, location TEXT,
       raisedBy TEXT, raisedAt TEXT,
       status TEXT, correctiveAction TEXT, closedBy TEXT, closedAt TEXT,
-      photos TEXT
+      photos TEXT,
+      FOREIGN KEY (elementId) REFERENCES elements(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_ncrs_status  ON ncrs(status);
     CREATE INDEX IF NOT EXISTS idx_ncrs_element ON ncrs(elementId);

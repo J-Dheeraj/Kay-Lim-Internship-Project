@@ -939,14 +939,16 @@ async function loadAll(){
 
   /* connection status */
   const intStatus=await tryFetch('/api/integrations/status',null);
-  /* Provenance: backend health alone does NOT mean the data is live. A source
-     is only live if its integration is configured; otherwise it is demo data. */
+  /* Provenance: backend health alone does NOT mean the data is live, and
+     "configured" (credentials present) is NOT proof of a working connection.
+     Per-source live/failed state is carried by each response's _source /
+     _integrationError fields. */
   if(!backendOk){
     setEl('srcLabel','Mock data (backend offline)');
   }else{
     const configured=intStatus?['acc','qse','unicon','pbi'].filter(k=>intStatus[k]&&intStatus[k].configured):[];
     setEl('srcLabel',configured.length
-      ? 'Live: '+configured.map(k=>k.toUpperCase()).join(', ')+' · other sources demo'
+      ? 'Configured: '+configured.map(k=>k.toUpperCase()).join(', ')+' · other sources demo'
       : 'Demo data — no live integrations configured');
   }
   if(intStatus){
@@ -1082,7 +1084,21 @@ async function loadAll(){
   const pbiRep=await tryFetch('/api/powerbi-reports',null);
   if(pbiRep&&(pbiRep.reports||pbiRep.value)){const _r=pbiRep.reports||pbiRep.value;
     const container=document.getElementById('pbi-report-list');
-    if(container)container.innerHTML=_r.map(r=>'<div onclick="loadPbiReport(\''+esc(r.id)+'\')" style="padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'#fff\'">📊 '+esc(r.name)+'</div>').join('');
+    if(container){
+      container.innerHTML='';
+      /* Build via DOM + addEventListener: the report id is bound as a JS value,
+         never concatenated into a markup/handler string, so a malicious or
+         compromised report id cannot inject script (DOM XSS). */
+      _r.forEach(r=>{
+        const div=document.createElement('div');
+        div.style.cssText='padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s';
+        div.textContent='📊 '+(r.name==null?'':String(r.name));
+        div.addEventListener('click',()=>loadPbiReport(r.id));
+        div.addEventListener('mouseover',()=>div.style.background='#f0f4ff');
+        div.addEventListener('mouseout',()=>div.style.background='#fff');
+        container.appendChild(div);
+      });
+    }
   }
 }
 loadAll();

@@ -136,6 +136,47 @@ function mock(data, integrationError) {
     : { ...data, _source: 'mock' };
 }
 
+// Provenance contract: try the live vendor call when the integration is
+// configured; otherwise (or on failure) serve mock data. A failed live call is
+// never presented as live — it carries `_integrationError`. In strict mode
+// (INTEGRATIONS_STRICT=1) a configured-but-failing integration returns 502
+// instead of mock, so a production deployment never shows demo data as real.
+const STRICT_INTEGRATIONS = /^(1|true|strict|on)$/i.test(process.env.INTEGRATIONS_STRICT || '');
+async function liveOrMock(res, label, configured, fetchLive, mockData) {
+  if (configured) {
+    try {
+      return res.json({ ...(await fetchLive()), _source: 'live' });
+    } catch (e) {
+      console.warn(`[${label}] live call failed, using mock:`, e.message);
+      if (STRICT_INTEGRATIONS)
+        return res.status(502).json({ error: 'integration unavailable', source: label, detail: e.message, _source: 'error' });
+      return res.json(mock(mockData, e.message));
+    }
+  }
+  return res.json(mock(mockData));
+}
+
+// Treat the .env.example placeholders as "not configured" so a half-filled .env
+// cannot make an integration look live. A value is real only if set and not a
+// recognisable placeholder.
+function isPlaceholder(v) {
+  return typeof v === 'string' &&
+    (/^(your_|ask_|change|placeholder|example|<)/i.test(v.trim()) || /_here$/i.test(v.trim()) || v.trim() === '');
+}
+function real(v) { return (typeof v === 'string' && v.trim() && !isPlaceholder(v)) ? v.trim() : undefined; }
+function configured(...names) { return names.every(n => real(process.env[n])); }
+
+// Warn loudly at startup about any credential left as a placeholder.
+function validateConfig() {
+  const creds = ['APS_CLIENT_ID','APS_CLIENT_SECRET','PBI_TENANT_ID','PBI_CLIENT_ID',
+    'PBI_CLIENT_SECRET','PBI_WORKSPACE_ID','PBI_REPORT_ID','QSE_API_KEY','UNICON_API_KEY','UNICON_COMPANY_ID'];
+  const bad = creds.filter(n => process.env[n] && isPlaceholder(process.env[n]));
+  if (bad.length) {
+    console.warn(`  ⚠ Placeholder values detected (treated as UNCONFIGURED): ${bad.join(', ')}`);
+    console.warn('    Replace them with real credentials in .env, or remove them.');
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Health
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,10 +187,10 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().to
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/integrations/status', (_req, res) => {
   res.json({
-    acc:    { configured: !!(process.env.APS_CLIENT_ID && process.env.APS_CLIENT_SECRET), label: 'Autodesk Construction Cloud' },
-    pbi:    { configured: !!(process.env.PBI_TENANT_ID && process.env.PBI_CLIENT_ID && process.env.PBI_CLIENT_SECRET), label: 'Power BI Embedded' },
-    qse:    { configured: !!(process.env.QSE_API_KEY),    label: 'Insight QSE (CAPPS)' },
-    unicon: { configured: !!(process.env.UNICON_API_KEY), label: 'UniCon' }
+    acc:    { configured: configured('APS_CLIENT_ID','APS_CLIENT_SECRET'), label: 'Autodesk Construction Cloud' },
+    pbi:    { configured: configured('PBI_TENANT_ID','PBI_CLIENT_ID','PBI_CLIENT_SECRET'), label: 'Power BI Embedded' },
+    qse:    { configured: configured('QSE_API_KEY'),    label: 'Insight QSE (CAPPS)' },
+    unicon: { configured: configured('UNICON_API_KEY'), label: 'UniCon' }
   });
 });
 
@@ -339,46 +380,33 @@ app.get('/api/manpower', (_req, res) => {
 //   GET /api/v1/ptw/permits
 //   GET /api/v1/attendance/workers
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/qse/inspections', async (_req, res) => {
-  const base = process.env.QSE_BASE_URL;
-  const key  = process.env.QSE_API_KEY;
-  if (base && key) {
-    try {
-      const r = await fetchT(`${base}/api/v1/inspections`, {
-        headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
-      });
-      if (!r.ok) throw new Error(`QSE ${r.status}`);
-      return res.json(await r.json());
-    } catch (e) {
-      console.warn('[/api/qse/inspections] live call failed, using mock:', e.message);
-    }
-  }
-  res.json(mock({
-    results: [
+app.get('/api/qse/inspections', (_req, res) => liveOrMock(res, 'qse/inspections',
+  process.env.QSE_BASE_URL && process.env.QSE_API_KEY,
+  async () => {
+    const r = await fetchT(`${process.env.QSE_BASE_URL}/api/v1/inspections`, {
+      headers: { 'Authorization': `Bearer ${process.env.QSE_API_KEY}`, 'Accept': 'application/json' }
+    });
+    if (!r.ok) throw new Error(`QSE ${r.status}`);
+    return r.json();
+  },
+  { results: [
       { id:'QI-001', type:'Pre-Pour Concrete',     location:'L5 Grid C-D/3-4',  inspector:'Ahmad Fauzi',  defects:0, status:'closed', date:'2026-06-08' },
       { id:'QI-002', type:'M&E Rough-In 1st Fix',   location:'L4 Zone B',        inspector:'Lim Ah Kow',   defects:3, status:'open',   date:'2026-06-09' },
       { id:'QI-003', type:'Architectural Finishes', location:'L6 Unit 6B',       inspector:'Sarah Ng',     defects:1, status:'open',   date:'2026-06-09' },
       { id:'QI-004', type:'Pre-Handover',            location:'L3 Unit 3A',       inspector:'Tan Wei Ming', defects:5, status:'open',   date:'2026-06-07' },
       { id:'QI-005', type:'Structural M&E',          location:'B1 Risers',        inspector:'Chan Beng Hwa',defects:0, status:'closed', date:'2026-06-06' },
-    ]
-  }));
-});
+    ] }));
 
-app.get('/api/qse/safety', async (_req, res) => {
-  const base = process.env.QSE_BASE_URL;
-  const key  = process.env.QSE_API_KEY;
-  if (base && key) {
-    try {
-      const r = await fetchT(`${base}/api/v1/safety/inspections`, {
-        headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
-      });
-      if (!r.ok) throw new Error(`QSE Safety ${r.status}`);
-      return res.json(await r.json());
-    } catch (e) {
-      console.warn('[/api/qse/safety] live call failed, using mock:', e.message);
-    }
-  }
-  res.json(mock({
+app.get('/api/qse/safety', (_req, res) => liveOrMock(res, 'qse/safety',
+  process.env.QSE_BASE_URL && process.env.QSE_API_KEY,
+  async () => {
+    const r = await fetchT(`${process.env.QSE_BASE_URL}/api/v1/safety/inspections`, {
+      headers: { 'Authorization': `Bearer ${process.env.QSE_API_KEY}`, 'Accept': 'application/json' }
+    });
+    if (!r.ok) throw new Error(`QSE Safety ${r.status}`);
+    return r.json();
+  },
+  {
     open: 8, closed: 44, thisWeek: 3,
     categories: [
       { name:'PPE',          count:6 },{ name:'Housekeeping', count:8 },
@@ -396,48 +424,34 @@ app.get('/api/qse/safety', async (_req, res) => {
       { date:'2026-06-08', type:'Daily',  inspector:'Wong Kai Feng', infringements:1, status:'closed' },
     ]
   }));
-});
 
-app.get('/api/qse/ptw', async (_req, res) => {
-  const base = process.env.QSE_BASE_URL;
-  const key  = process.env.QSE_API_KEY;
-  if (base && key) {
-    try {
-      const r = await fetchT(`${base}/api/v1/ptw/permits`, {
-        headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
-      });
-      if (!r.ok) throw new Error(`QSE PTW ${r.status}`);
-      return res.json(await r.json());
-    } catch (e) {
-      console.warn('[/api/qse/ptw] live call failed, using mock:', e.message);
-    }
-  }
-  res.json(mock({
-    results: [
+app.get('/api/qse/ptw', (_req, res) => liveOrMock(res, 'qse/ptw',
+  process.env.QSE_BASE_URL && process.env.QSE_API_KEY,
+  async () => {
+    const r = await fetchT(`${process.env.QSE_BASE_URL}/api/v1/ptw/permits`, {
+      headers: { 'Authorization': `Bearer ${process.env.QSE_API_KEY}`, 'Accept': 'application/json' }
+    });
+    if (!r.ok) throw new Error(`QSE PTW ${r.status}`);
+    return r.json();
+  },
+  { results: [
       { id:'PTW-001', work:'Hot Work — Welding',      location:'L5 Structural Frame', issuer:'Ahmad Fauzi',   expiry:'2026-06-09 17:00', status:'active'   },
       { id:'PTW-002', work:'Confined Space Entry',    location:'Underground Sump',    issuer:'Rajan Kumar',   expiry:'2026-06-09 16:00', status:'expiring' },
       { id:'PTW-003', work:'Working at Height >3m',   location:'L8 Roof Form',        issuer:'Chan Beng Hwa', expiry:'2026-06-09 18:00', status:'active'   },
       { id:'PTW-004', work:'Electrical Isolation',    location:'MSB Room B1',         issuer:'Lim Ah Kow',    expiry:'2026-06-10 08:00', status:'active'   },
       { id:'PTW-005', work:'Hot Work — Cutting',      location:'L6 Architectural',    issuer:'Ahmad Fauzi',   expiry:'2026-06-08 17:00', status:'expired'  },
-    ]
-  }));
-});
+    ] }));
 
-app.get('/api/qse/attendance', async (_req, res) => {
-  const base = process.env.QSE_BASE_URL;
-  const key  = process.env.QSE_API_KEY;
-  if (base && key) {
-    try {
-      const r = await fetchT(`${base}/api/v1/attendance/workers`, {
-        headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
-      });
-      if (!r.ok) throw new Error(`QSE Attendance ${r.status}`);
-      return res.json(await r.json());
-    } catch (e) {
-      console.warn('[/api/qse/attendance] live call failed, using mock:', e.message);
-    }
-  }
-  res.json(mock({
+app.get('/api/qse/attendance', (_req, res) => liveOrMock(res, 'qse/attendance',
+  process.env.QSE_BASE_URL && process.env.QSE_API_KEY,
+  async () => {
+    const r = await fetchT(`${process.env.QSE_BASE_URL}/api/v1/attendance/workers`, {
+      headers: { 'Authorization': `Bearer ${process.env.QSE_API_KEY}`, 'Accept': 'application/json' }
+    });
+    if (!r.ok) throw new Error(`QSE Attendance ${r.status}`);
+    return r.json();
+  },
+  {
     todayTotal: 148, expected: 155,
     trades: [
       { trade:'Concretor',  count:22 },{ trade:'Carpenter',  count:18 },
@@ -451,7 +465,6 @@ app.get('/api/qse/attendance', async (_req, res) => {
       { day:'Fri',present:148,expected:155 }
     ]
   }));
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UniCon (app.unicongroup.co)
@@ -466,45 +479,35 @@ app.get('/api/qse/attendance', async (_req, res) => {
 //   UNICON_COMPANY_ID=your_unicon_company_id
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/unicon/projects', async (_req, res) => {
-  const base = process.env.UNICON_BASE_URL;
-  const key  = process.env.UNICON_API_KEY;
-  const cid  = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
-  if (base && key) {
-    try {
-      const r = await fetchT(`${base}/api/companies/${cid}/projects`, {
-        headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
+  const cid = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
+  return liveOrMock(res, 'unicon/projects',
+    process.env.UNICON_BASE_URL && process.env.UNICON_API_KEY,
+    async () => {
+      const r = await fetchT(`${process.env.UNICON_BASE_URL}/api/companies/${cid}/projects`, {
+        headers: { 'Authorization': `Bearer ${process.env.UNICON_API_KEY}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`UniCon projects ${r.status}`);
-      return res.json(await r.json());
-    } catch (e) {
-      console.warn('[/api/unicon/projects] live call failed, using mock:', e.message);
-    }
-  }
-  res.json(mock({
-    results: [
+      return r.json();
+    },
+    { results: [
       { id:'p1', name:'Sembawang Block 312 (HDB)',     status:'active',   progress:68, dueDate:'2027-03-31', budget:42_000_000, spent:28_560_000, tasks:{ done:142, total:210 } },
       { id:'p2', name:'Jurong West RC Frame (MUP)',    status:'active',   progress:26, dueDate:'2027-12-31', budget:15_000_000, spent:3_900_000,  tasks:{ done:38,  total:146 } },
       { id:'p3', name:'Tampines PPVC Residential',     status:'active',   progress:17, dueDate:'2028-06-30', budget:28_000_000, spent:4_760_000,  tasks:{ done:22,  total:130 } },
-    ]
-  }));
+    ] });
 });
 
 app.get('/api/unicon/tasks', async (_req, res) => {
-  const base = process.env.UNICON_BASE_URL;
-  const key  = process.env.UNICON_API_KEY;
-  const cid  = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
-  if (base && key) {
-    try {
-      const r = await fetchT(`${base}/api/companies/${cid}/tasks`, {
-        headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
+  const cid = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
+  return liveOrMock(res, 'unicon/tasks',
+    process.env.UNICON_BASE_URL && process.env.UNICON_API_KEY,
+    async () => {
+      const r = await fetchT(`${process.env.UNICON_BASE_URL}/api/companies/${cid}/tasks`, {
+        headers: { 'Authorization': `Bearer ${process.env.UNICON_API_KEY}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`UniCon tasks ${r.status}`);
-      return res.json(await r.json());
-    } catch (e) {
-      console.warn('[/api/unicon/tasks] live call failed, using mock:', e.message);
-    }
-  }
-  res.json(mock({
+      return r.json();
+    },
+    {
     open: 34, inProgress: 18, completed: 34, overdue: 7, dueToday: 5,
     tasks: [
       { id:'t1', name:'Install formwork L5 Col C3', project:'Sembawang', assignedTo:'Ahmad Fauzi',   dueDate:'2026-06-10', status:'inProgress', priority:'high'   },
@@ -513,32 +516,28 @@ app.get('/api/unicon/tasks', async (_req, res) => {
       { id:'t4', name:'Hoist maintenance check',    project:'Sembawang', assignedTo:'Wong Kai Feng', dueDate:'2026-06-10', status:'open',       priority:'low'    },
       { id:'t5', name:'PPVC module delivery TT22',  project:'Tampines',  assignedTo:'Rajan Kumar',   dueDate:'2026-06-12', status:'open',       priority:'medium' },
     ]
-  }));
+  });
 });
 
 app.get('/api/unicon/budget', async (_req, res) => {
-  const base = process.env.UNICON_BASE_URL;
-  const key  = process.env.UNICON_API_KEY;
-  const cid  = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
-  if (base && key) {
-    try {
-      const r = await fetchT(`${base}/api/companies/${cid}/budget`, {
-        headers: { 'Authorization': `Bearer ${key}`, 'Accept': 'application/json' }
+  const cid = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
+  return liveOrMock(res, 'unicon/budget',
+    process.env.UNICON_BASE_URL && process.env.UNICON_API_KEY,
+    async () => {
+      const r = await fetchT(`${process.env.UNICON_BASE_URL}/api/companies/${cid}/budget`, {
+        headers: { 'Authorization': `Bearer ${process.env.UNICON_API_KEY}`, 'Accept': 'application/json' }
       });
       if (!r.ok) throw new Error(`UniCon budget ${r.status}`);
-      return res.json(await r.json());
-    } catch (e) {
-      console.warn('[/api/unicon/budget] live call failed, using mock:', e.message);
-    }
-  }
-  res.json(mock({
+      return r.json();
+    },
+    {
     totalContract: 85_000_000, totalBilled: 37_220_000, forecast: 87_400_000,
     projects: [
       { name:'Sembawang Block 312', contract:42_000_000, billed:28_560_000, utilPct:68 },
       { name:'Jurong West RC',      contract:15_000_000, billed:3_900_000,  utilPct:26 },
       { name:'Tampines PPVC',       contract:28_000_000, billed:4_760_000,  utilPct:17 },
     ]
-  }));
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -721,6 +720,7 @@ app.get('/api/idd/logistics', async (_req, res) => {
 
 const { server, tls } = makeServer(app);
 server.listen(PORT, () => {
+  validateConfig();
   console.log(`\n🏗  Kay Lim Dashboard Backend — ${tls ? 'https' : 'http'}://localhost:${PORT}`);
   console.log(`   Auth         : per-user login at POST /api/login (manage users: node auth.js add-user <name> <password>)`);
   console.log(`   TLS          : ${tls ? '✅ HTTPS enabled' : '⚠ HTTP — terminate TLS at a reverse proxy for non-local use'}`);
