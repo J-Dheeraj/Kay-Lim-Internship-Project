@@ -126,8 +126,13 @@ async function getPbiToken() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-function mock(data) {
-  return { ...data, _source: 'mock' };
+// _source:'mock' marks demo data. When a *live* integration was attempted and
+// failed, pass the error so the client can show "live integration unavailable"
+// instead of silently presenting mock figures as real.
+function mock(data, integrationError) {
+  return integrationError
+    ? { ...data, _source: 'mock', _integrationError: integrationError }
+    : { ...data, _source: 'mock' };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -186,7 +191,7 @@ app.get('/api/rfis', async (req, res) => {
         { id:'RFI-007', subject:'Roof waterproofing membrane spec',     discipline:'Architectural', assignedTo:'Tan Wei Ming',status:'open',  dueDate:'2026-06-20', agedays:1  },
         { id:'RFI-008', subject:'Generator room ventilation top-up',    discipline:'M&E',         assignedTo:'Lim Ah Kow', status:'overdue', dueDate:'2026-06-03', agedays:28 },
       ]
-    }));
+    }, e.message));
   }
 });
 
@@ -223,7 +228,7 @@ app.get('/api/defects', async (req, res) => {
         { id:'DEF-005', title:'Misaligned door frame L7-02',     status:'open',   severity:'minor',    location:'L7 Unit 7-02' },
         { id:'DEF-006', title:'Defective ACMV grille L4',        status:'closed', severity:'minor',    location:'L4 Corridor' },
       ]
-    }));
+    }, e.message));
   }
 });
 
@@ -263,7 +268,7 @@ app.get('/api/qaqc', async (req, res) => {
         { id:'CL-004', name:'Pre-Handover Inspection Unit 3A',type:'Pre-HO',     status:'overdue',   passRate:75, location:'L3', dueDate:'2026-06-05', assignedTo:'Tan Wei Ming' },
         { id:'CL-005', name:'Fire-Stop Checklist B1',         type:'Fire Stop',  status:'completed', passRate:90, location:'B1', dueDate:'2026-06-07', assignedTo:'Chan Beng Hwa' },
       ]
-    }));
+    }, e.message));
   }
 });
 

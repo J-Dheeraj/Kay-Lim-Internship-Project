@@ -5,3 +5,4 @@ idd_data_backup_*.json
 *.log
 users.json
 .session_secret
+*.tmp

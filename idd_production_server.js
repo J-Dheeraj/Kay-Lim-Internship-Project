@@ -88,7 +88,7 @@ app.get('/', (_req, res) => {
 });
 // Static assets — block data files, secrets & backups (would leak the QC/NCR DB)
 app.use((req, res, next) => {
-  if (/\.(json|env)$/i.test(req.path) || /session_secret/i.test(req.path)) return res.status(404).end();
+  if (/\.(json|env|log|tmp)$/i.test(req.path) || /session_secret|users/i.test(req.path)) return res.status(404).end();
   next();
 }, express.static(__dirname, { index: false }));
 // Serve the app HTML (with injected token) at its direct path too
@@ -132,12 +132,31 @@ function loadDB() {
   return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
 }
 
+// Atomic, serialised writes: write to a temp file then rename, so a crash
+// mid-write can never leave a truncated/corrupt DATA_FILE.
 let writeQueue = Promise.resolve();
 function saveDB(db) {
-  writeQueue = writeQueue.then(() =>
-    fs.promises.writeFile(DATA_FILE, JSON.stringify(db, null, 2))
-  );
+  writeQueue = writeQueue.then(async () => {
+    const tmp = `${DATA_FILE}.tmp`;
+    await fs.promises.writeFile(tmp, JSON.stringify(db, null, 2));
+    await fs.promises.rename(tmp, DATA_FILE);
+  }).catch(err => {
+    // Never let one failed write poison the whole queue for later requests.
+    console.error('  [DB] write failed:', err.message);
+  });
   return writeQueue;
+}
+
+// Append-only audit trail — one JSON line per mutation, actor from the token.
+const AUDIT_FILE = path.join(__dirname, 'idd_audit.log');
+function audit(req, action, details) {
+  const line = JSON.stringify({
+    at: new Date().toISOString(),
+    actor: req.user?.username || 'unknown',
+    ip: req.ip,
+    action, ...details,
+  }) + '\n';
+  fs.promises.appendFile(AUDIT_FILE, line).catch(() => {});
 }
 
 function uid() { return crypto.randomBytes(6).toString('hex'); }
@@ -358,6 +377,7 @@ app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, a
   await saveDB(db);
   broadcast('element:updated', { id:el.id, status:el.status, by:byStr, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
+  audit(req, 'element.status', { elementId:el.id, status:el.status });
   res.json({ ok:true, element:el });
 });
 
@@ -399,6 +419,7 @@ app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter
     updatedAt: el.updatedAt,
   });
   broadcast('dashboard:refresh', {});
+  audit(req, 'element.checklist', { elementId:el.id, status:el.status });
   res.json({ ok:true, element:el });
 });
 
@@ -436,6 +457,7 @@ app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, asyn
   broadcast('ncr:raised',      { ncrNo:ncr.ncrNo, elementId:el.id, severity:ncr.severity, raisedBy:ncr.raisedBy });
   broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
+  audit(req, 'ncr.raise', { elementId:el.id, ncrNo:ncr.ncrNo, severity:ncr.severity });
   res.status(201).json({ ok:true, ncr });
 });
 
@@ -471,6 +493,7 @@ app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, async (re
   broadcast('ncr:updated',     { id:ncr.id, ncrNo:ncr.ncrNo, status:ncr.status, elementId:ncr.elementId });
   if (el) broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
+  audit(req, 'ncr.update', { ncrNo:ncr.ncrNo, status:ncr.status });
   res.json({ ok:true, ncr });
 });
 
@@ -483,12 +506,13 @@ app.get('/api/production/ncrs', requireAuth, (req, res) => {
 });
 
 // ─── Reset to seed (dev utility — admin only) ────────────────────────────────
-app.post('/api/production/reset', requireAdmin, mutationLimiter, async (_req, res) => {
+app.post('/api/production/reset', requireAdmin, mutationLimiter, async (req, res) => {
   // Back up current data before wiping
   const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
   if (fs.existsSync(DATA_FILE)) fs.copyFileSync(DATA_FILE, backup);
   db = seedDB();
   broadcast('dashboard:refresh', {});
+  audit(req, 'db.reset', { backup: path.basename(backup) });
   res.json({ ok:true, message:'Database reset to seed data', backup: path.basename(backup) });
 });
 
