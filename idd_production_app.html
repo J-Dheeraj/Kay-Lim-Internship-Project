@@ -229,6 +229,7 @@ select.flt:focus{border-color:var(--teal)}
   <div class="live-bar">
     <span class="live-dot disconnected" id="live-dot"></span>
     <span class="live-label" id="live-label">Connecting…</span>
+    <a href="#" onclick="logout();return false" class="live-label" style="margin-left:auto;text-decoration:underline">Log out</a>
   </div>
 </nav>
 
@@ -503,6 +504,14 @@ function handleUnauthorized() {
   sessionStorage.removeItem('idd_token');
   TOKEN = '';
   showLogin('Session expired — please log in again');
+}
+
+async function logout() {
+  try { await fetch(API.replace('/api/production','') + '/api/logout', { method:'POST', headers: authHeaders() }); } catch {}
+  sessionStorage.removeItem('idd_token');
+  sessionStorage.removeItem('idd_user');
+  TOKEN = '';
+  location.reload();
 }
 
 let allElements      = [];

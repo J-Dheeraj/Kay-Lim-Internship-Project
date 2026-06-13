@@ -32,12 +32,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
-import { requireAuth, requireAdmin, loginHandler, verifyToken, makeServer } from './auth.js';
+import Database from 'better-sqlite3';
+import { requireAuth, requireAdmin, loginHandler, logoutHandler, verifyToken, makeServer } from './auth.js';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || `http://localhost:${PORT}`;
-const DATA_FILE      = path.join(__dirname, 'idd_data.json');
+const DATA_FILE      = path.join(__dirname, 'idd_data.json');   // legacy — migrated on first run
+const DB_FILE        = path.join(__dirname, 'idd.db');
 
 // ─── Express + Socket.io setup ───────────────────────────────────────────────
 const app = express();
@@ -82,13 +84,14 @@ const loginLimiter = rateLimit({
   message: { ok:false, error:'Too many login attempts — try again in 15 minutes' },
 });
 app.post('/api/login', loginLimiter, loginHandler);
+app.post('/api/logout', requireAuth, logoutHandler);
 
 app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, 'idd_production_app.html'));
 });
 // Static assets — block data files, secrets & backups (would leak the QC/NCR DB)
 app.use((req, res, next) => {
-  if (/\.(json|env|log|tmp)$/i.test(req.path) || /session_secret|users/i.test(req.path)) return res.status(404).end();
+  if (/\.(json|env|log|tmp|db)(-wal|-shm)?$/i.test(req.path) || /session_secret|users|revoked/i.test(req.path)) return res.status(404).end();
   next();
 }, express.static(__dirname, { index: false }));
 // Serve the app HTML (with injected token) at its direct path too
@@ -125,26 +128,36 @@ io.on('connection', socket => {
 
 function broadcast(event, payload) { io.emit(event, payload); }
 
-// ─── JSON file storage — async write queue ────────────────────────────────────
-// Serialises all writes so concurrent requests cannot corrupt the JSON file.
+// ─── SQLite storage (better-sqlite3, WAL) ────────────────────────────────────
+// The production state is held in a single document row, persisted through
+// SQLite so every write is a synchronous, atomic, crash-safe ACID commit —
+// no truncated files, no partial writes, no lost updates under concurrency.
+const sqlite = new Database(DB_FILE);
+sqlite.pragma('journal_mode = WAL');
+sqlite.exec('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+const _get = sqlite.prepare('SELECT value FROM kv WHERE key = ?');
+const _put = sqlite.prepare(
+  'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+);
+
 function loadDB() {
-  if (!fs.existsSync(DATA_FILE)) return null;
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  const row = _get.get('db');
+  if (row) return JSON.parse(row.value);
+  // One-time migration: import a legacy idd_data.json if present.
+  if (fs.existsSync(DATA_FILE)) {
+    const legacy = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    _put.run('db', JSON.stringify(legacy));
+    console.log('  [DB] migrated legacy idd_data.json into SQLite');
+    return legacy;
+  }
+  return null;
 }
 
-// Atomic, serialised writes: write to a temp file then rename, so a crash
-// mid-write can never leave a truncated/corrupt DATA_FILE.
-let writeQueue = Promise.resolve();
+// Synchronous ACID commit. Async signature kept so callers can `await` it.
 function saveDB(db) {
-  writeQueue = writeQueue.then(async () => {
-    const tmp = `${DATA_FILE}.tmp`;
-    await fs.promises.writeFile(tmp, JSON.stringify(db, null, 2));
-    await fs.promises.rename(tmp, DATA_FILE);
-  }).catch(err => {
-    // Never let one failed write poison the whole queue for later requests.
-    console.error('  [DB] write failed:', err.message);
-  });
-  return writeQueue;
+  try { _put.run('db', JSON.stringify(db)); }
+  catch (err) { console.error('  [DB] write failed:', err.message); }
+  return Promise.resolve();
 }
 
 // Append-only audit trail — one JSON line per mutation, actor from the token.
@@ -264,7 +277,7 @@ function seedDB() {
     elements, ncrs,
     lastUpdated: now.toISOString(),
   };
-  fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));  // sync OK — startup only
+  _put.run('db', JSON.stringify(db));   // commit seed to SQLite
   console.log(`  Seeded ${elements.length} elements, ${ncrs.length} NCRs`);
   return db;
 }
@@ -507,9 +520,10 @@ app.get('/api/production/ncrs', requireAuth, (req, res) => {
 
 // ─── Reset to seed (dev utility — admin only) ────────────────────────────────
 app.post('/api/production/reset', requireAdmin, mutationLimiter, async (req, res) => {
-  // Back up current data before wiping
+  // Back up current data (exported from SQLite) before wiping
   const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
-  if (fs.existsSync(DATA_FILE)) fs.copyFileSync(DATA_FILE, backup);
+  const current = _get.get('db');
+  if (current) fs.writeFileSync(backup, current.value);
   db = seedDB();
   broadcast('dashboard:refresh', {});
   audit(req, 'db.reset', { backup: path.basename(backup) });
@@ -532,7 +546,7 @@ httpServer.listen(PORT, () => {
   console.log(`  REST API:  ${scheme}://localhost:${PORT}/api/production/dashboard`);
   console.log(`  WebSocket: ${tls ? 'wss' : 'ws'}://localhost:${PORT}   (Socket.io)`);
   console.log(`  Frontend:  ${scheme}://localhost:${PORT}/`);
-  console.log(`  Data:      ${DATA_FILE}`);
+  console.log(`  Data:      ${DB_FILE} (SQLite, WAL)`);
   console.log(`  Records:   ${db.elements.length} elements, ${db.ncrs.length} NCRs`);
   if (ALLOWED_ORIGIN !== `http://localhost:${PORT}`)
     console.log(`  CORS:      ${ALLOWED_ORIGIN}`);

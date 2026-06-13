@@ -60,6 +60,16 @@ tr:last-child td{border-bottom:none}
 .pb{height:100%;border-radius:4px;transition:width .5s}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.9rem}
 @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+/* Small screens: the 230px fixed sidebar leaves no usable width, so stack the
+   layout — sidebar becomes a compact wrapping top nav, content fills the width. */
+@media(max-width:768px){
+  body{flex-direction:column;height:auto;min-height:100vh;overflow:auto}
+  .sidebar{width:100%;flex-direction:row;flex-wrap:wrap;align-items:center;overflow-x:auto}
+  .sidebar .nav-group,.sidebar-footer{display:none}
+  .logo{flex:1 0 100%;padding:.8rem 1rem}
+  .nav-item{margin:.2rem;font-size:.78rem}
+  .main{padding:1rem;overflow-y:visible}
+}
 .divider{border:none;border-top:1px solid var(--border);margin:1.2rem 0}
 .info-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem;margin-bottom:.9rem}
 .info-cell{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem}
@@ -145,7 +155,8 @@ tr:last-child td{border-bottom:none}
 
   <div class="sidebar-footer">
     Synced: <span id="lastSync">—</span><br>
-    <span id="srcLabel">connecting…</span>
+    <span id="srcLabel">connecting…</span><br>
+    <a href="#" onclick="logout();return false" style="color:rgba(255,255,255,.55);text-decoration:underline">Log out</a>
   </div>
 </nav>
 
@@ -790,6 +801,10 @@ let authPrompted=false;
 function onUnauthorized(){
   sessionStorage.removeItem('klim_token');TOKEN='';
   if(!authPrompted){authPrompted=true;showLogin('Session expired — please log in again')}
+}
+async function logout(){
+  try{await fetch(BACKEND+'/api/logout',{method:'POST',headers:authHeaders()})}catch{}
+  sessionStorage.removeItem('klim_token');TOKEN='';location.reload();
 }
 if(!TOKEN)showLogin();
 

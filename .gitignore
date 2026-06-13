@@ -5,4 +5,8 @@ idd_data_backup_*.json
 *.log
 users.json
 .session_secret
+.revoked.json
 *.tmp
+idd.db
+idd.db-wal
+idd.db-shm

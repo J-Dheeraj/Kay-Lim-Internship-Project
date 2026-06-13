@@ -25,6 +25,7 @@ import { fileURLToPath } from 'url';
 const __dirname    = path.dirname(fileURLToPath(import.meta.url));
 const USERS_FILE   = path.join(__dirname, 'users.json');
 const SECRET_FILE  = path.join(__dirname, '.session_secret');
+const REVOKED_FILE = path.join(__dirname, '.revoked.json');
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 // ─── Session secret ───────────────────────────────────────────────────────────
@@ -36,6 +37,35 @@ function loadSecret() {
   return s;
 }
 const SECRET = loadSecret();
+
+// ─── Token revocation (file-backed denylist of jti → expiry) ──────────────────
+// Shared on disk so both servers honour the same revocations and they survive
+// a restart. Re-read when the file changes; expired entries are pruned on write.
+let _revokedCache = { mtime: 0, set: new Map() };
+function loadRevoked() {
+  try {
+    const stat = fs.statSync(REVOKED_FILE);
+    if (stat.mtimeMs !== _revokedCache.mtime) {
+      const obj = JSON.parse(fs.readFileSync(REVOKED_FILE, 'utf8'));
+      _revokedCache = { mtime: stat.mtimeMs, set: new Map(Object.entries(obj)) };
+    }
+  } catch { /* no file yet → nothing revoked */ }
+  return _revokedCache.set;
+}
+function isRevoked(jti) {
+  return jti ? loadRevoked().has(jti) : false;
+}
+export function revokeToken(token) {
+  const data = decodeToken(token);
+  if (!data?.jti) return false;
+  const map = new Map(loadRevoked());
+  map.set(data.jti, data.exp);
+  const now = Date.now();
+  for (const [j, exp] of map) if (typeof exp === 'number' && exp < now) map.delete(j); // prune expired
+  fs.writeFileSync(REVOKED_FILE, JSON.stringify(Object.fromEntries(map)), { mode: 0o600 });
+  _revokedCache.mtime = 0; // force reload next check
+  return true;
+}
 
 // ─── Password hashing (scrypt) ────────────────────────────────────────────────
 export function hashPassword(password) {
@@ -79,12 +109,14 @@ function writeUsers(users) {
 export function signToken(username, role) {
   const payload = Buffer.from(JSON.stringify({
     sub: username, role, exp: Date.now() + TOKEN_TTL_MS,
+    jti: crypto.randomBytes(8).toString('hex'),
   })).toString('base64url');
   const sig = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
-export function verifyToken(token) {
+// Validate signature + expiry only, returning the raw payload (incl. jti).
+function decodeToken(token) {
   if (typeof token !== 'string') return null;
   const [payload, sig] = token.split('.');
   if (!payload || !sig) return null;
@@ -94,8 +126,14 @@ export function verifyToken(token) {
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (typeof data.exp !== 'number' || Date.now() > data.exp) return null;
-    return { username: data.sub, role: data.role || 'user' };
+    return data;
   } catch { return null; }
+}
+
+export function verifyToken(token) {
+  const data = decodeToken(token);
+  if (!data || isRevoked(data.jti)) return null;
+  return { username: data.sub, role: data.role || 'user' };
 }
 
 // ─── Express middleware ───────────────────────────────────────────────────────
@@ -126,6 +164,13 @@ export function loginHandler(req, res) {
   if (!ok) return res.status(401).json({ ok: false, error: 'Invalid username or password' });
   const role = u.role || 'user';
   res.json({ ok: true, token: signToken(username, role), user: { username, role } });
+}
+
+// POST /api/logout — revoke the caller's current token (requires auth).
+export function logoutHandler(req, res) {
+  const h = req.headers.authorization || '';
+  if (h.startsWith('Bearer ')) revokeToken(h.slice(7));
+  res.json({ ok: true });
 }
 
 // ─── HTTP/HTTPS server factory ────────────────────────────────────────────────

@@ -10,8 +10,9 @@ process.env.SESSION_SECRET = 'test-secret-do-not-use-in-production';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import {
-  hashPassword, verifyPassword, signToken, verifyToken, requireAuth, requireAdmin,
+  hashPassword, verifyPassword, signToken, verifyToken, requireAuth, requireAdmin, revokeToken,
 } from '../auth.js';
 
 test('password hashing round-trips and rejects wrong passwords', () => {
@@ -57,6 +58,16 @@ test('expired token is rejected', () => {
   const sig = crypto.createHmac('sha256', process.env.SESSION_SECRET)
     .update(payload).digest('base64url');
   assert.equal(verifyToken(`${payload}.${sig}`), null);
+});
+
+test('revoked token is rejected after logout', () => {
+  const token = signToken('grace', 'user');
+  assert.equal(verifyToken(token).username, 'grace');  // valid before revoke
+  revokeToken(token);
+  assert.equal(verifyToken(token), null);              // rejected after revoke
+  // A different (non-revoked) token still works
+  assert.equal(verifyToken(signToken('grace', 'user')).username, 'grace');
+  fs.rmSync(new URL('../.revoked.json', import.meta.url), { force: true });
 });
 
 test('requireAuth blocks missing/invalid tokens and admits valid ones', () => {

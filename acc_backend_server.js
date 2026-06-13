@@ -16,7 +16,7 @@ import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import rateLimit from 'express-rate-limit';
-import { requireAuth, loginHandler, makeServer } from './auth.js';
+import { requireAuth, loginHandler, logoutHandler, makeServer } from './auth.js';
 
 const app = express();
 const ALLOWED = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001').split(',');
@@ -46,6 +46,7 @@ app.use('/api', (req, res, next) => {
   if (req.path === '/health' || req.path === '/login') return next();
   requireAuth(req, res, next);
 });
+app.post('/api/logout', logoutHandler);   // behind the gate above (requires a valid token)
 
 // Rate limit the token-generating + vendor-proxy endpoints (per security review)
 const proxyLimiter = rateLimit({
