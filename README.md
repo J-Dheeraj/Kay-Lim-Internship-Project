@@ -11,27 +11,35 @@ A single dashboard aggregating four platforms Kay Lim already uses:
 
 ### Run
 ```bash
-
-npm install
-cp .env.example .env   # fill in APS / Power BI credentials
-node acc_backend_server.js          # backend proxy on :3001
-# open construction_dashboard.html in a browser
+npm install                 # requires Node 20 LTS or 22 LTS (see .nvmrc)
+cp .env.example .env        # set ADMIN_PASSWORD, and APS / Power BI creds if available
+npm start                   # backend proxy on :3001
+# open construction_dashboard.html in a browser and log in
 ```
-Falls back to realistic mock data automatically when credentials are not set.
+Falls back to realistic mock data automatically when vendor credentials are not set.
 
 ## 2. IDD Digital Production prototype 
-Real-time tracker for HDB IDD Use Case #6 (Digital Production): precast/PPVC element register, QR tagging + camera scanner, QC inspection checklists, NCR workflow, live multi-user sync via Socket.io.
+Real-time tracker for HDB IDD Use Case #6 (Digital Production): precast/PPVC element register, QR tagging + camera scanner, QC inspection checklists, NCR workflow, live multi-user sync via Socket.io. State is persisted in SQLite (WAL).
 
 ### Run
 ```bash
-
-npm install express socket.io express-rate-limit
-API_KEY=your-secret node idd_production_server.js   # :3002
-# open http://localhost:3002/
+npm install
+npm run start:idd           # serves the app + API on :3002
+# open http://localhost:3002/ and log in
 ```
 
+## Authentication
+- **Per-user login** — `POST /api/login` returns a signed session token (8h); the browser sends it as `Authorization: Bearer <token>`. No API key is ever exposed to the browser.
+- **Logout / revocation** — `POST /api/logout` revokes the token; deleting a user or changing their role takes effect on their next request.
+- **User management** — `node auth.js add-user <name> <password> [admin|user]`, `remove-user`, `list-users`. First run creates an `admin` account (password from `ADMIN_PASSWORD`, or printed once).
+- **Roles** — any logged-in user can perform QC/NCR mutations; database reset requires `admin`.
+
 ## Security notes
-- All vendor API keys live server-side in `.env` — never sent to the browser
-- Mutation routes require `X-API-Key`; Socket.io connections are authenticated
-- All user-supplied text is HTML-escaped before rendering; CORS locked to allowlisted origins
-- Known limitation: shared API key + self-asserted usernames — replace with per-user JWT before production use
+- Vendor API keys live server-side in `.env` only — never sent to the browser.
+- All `/api` routes require a valid token (except health and login); Socket.io connections are authenticated too.
+- IDD mutations are recorded in a hash-chained, append-only audit log (`idd_audit.log`).
+- User-supplied text is HTML-escaped before rendering; CORS is locked to allowlisted origins.
+- TLS: set `TLS_KEY_FILE`/`TLS_CERT_FILE` to serve HTTPS directly, or terminate TLS at a reverse proxy.
+- `npm test` runs the auth unit tests.
+
+See the security review history for known remaining gaps (relational storage, operator workflows, live-integration verification).

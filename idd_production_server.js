@@ -33,7 +33,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import Database from 'better-sqlite3';
-import { requireAuth, requireAdmin, loginHandler, logoutHandler, verifyToken, makeServer } from './auth.js';
+import { requireAuth, requireAdmin, loginHandler, logoutHandler, authenticate, makeServer } from './auth.js';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
@@ -112,7 +112,7 @@ function str(v, maxLen = 2000) {
 
 // ─── Socket.io auth middleware ───────────────────────────────────────────────
 io.use((socket, next) => {
-  const user = verifyToken(socket.handshake.auth?.token);
+  const user = authenticate(socket.handshake.auth?.token);
   if (!user) return next(new Error('Unauthorized'));
   socket.user = user;
   next();
@@ -160,16 +160,35 @@ function saveDB(db) {
   return Promise.resolve();
 }
 
-// Append-only audit trail — one JSON line per mutation, actor from the token.
+// Append-only, hash-chained audit trail — one JSON line per mutation. Each
+// entry includes the SHA-256 of (previous hash + this entry), so any later
+// edit or deletion breaks the chain and is detectable. Written synchronously
+// before the response returns, so a recorded action is always persisted.
 const AUDIT_FILE = path.join(__dirname, 'idd_audit.log');
+let _auditPrevHash = (() => {
+  try {
+    const lines = fs.readFileSync(AUDIT_FILE, 'utf8').trim().split('\n').filter(Boolean);
+    if (lines.length) return JSON.parse(lines[lines.length - 1]).hash || '';
+  } catch { /* no log yet */ }
+  return '';
+})();
+
 function audit(req, action, details) {
-  const line = JSON.stringify({
+  const entry = {
     at: new Date().toISOString(),
     actor: req.user?.username || 'unknown',
     ip: req.ip,
     action, ...details,
-  }) + '\n';
-  fs.promises.appendFile(AUDIT_FILE, line).catch(() => {});
+    prevHash: _auditPrevHash,
+  };
+  entry.hash = crypto.createHash('sha256')
+    .update(_auditPrevHash + JSON.stringify(entry)).digest('hex');
+  try {
+    fs.appendFileSync(AUDIT_FILE, JSON.stringify(entry) + '\n');
+    _auditPrevHash = entry.hash;
+  } catch (err) {
+    console.error('  [AUDIT] write failed:', err.message);
+  }
 }
 
 function uid() { return crypto.randomBytes(6).toString('hex'); }

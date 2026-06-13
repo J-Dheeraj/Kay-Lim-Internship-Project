@@ -11,9 +11,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import {
-  hashPassword, verifyPassword, signToken, verifyToken, requireAuth, requireAdmin, revokeToken,
-} from '../auth.js';
+import os from 'node:os';
+import path from 'node:path';
+
+// Point the auth module at a throwaway user store so the middleware lifecycle
+// checks have known users without touching any real users.json.
+const USERS_FILE = path.join(os.tmpdir(), `klim-test-users-${process.pid}.json`);
+fs.writeFileSync(USERS_FILE, JSON.stringify({
+  carol: { passwordHash: 'x', role: 'user'  },
+  dan:   { passwordHash: 'x', role: 'user'  },
+  eve:   { passwordHash: 'x', role: 'admin' },
+  grace: { passwordHash: 'x', role: 'user'  },
+}));
+process.env.USERS_FILE = USERS_FILE;
+process.on('exit', () => { try { fs.rmSync(USERS_FILE, { force: true }); } catch {} });
+
+// Dynamic import so the env vars above are in place before auth.js evaluates
+// (static imports are hoisted and would run first).
+const {
+  hashPassword, verifyPassword, signToken, verifyToken, requireAuth, requireAdmin,
+  revokeToken, authenticate,
+} = await import('../auth.js');
 
 test('password hashing round-trips and rejects wrong passwords', () => {
   const stored = hashPassword('correct horse battery staple');
@@ -68,6 +86,17 @@ test('revoked token is rejected after logout', () => {
   // A different (non-revoked) token still works
   assert.equal(verifyToken(signToken('grace', 'user')).username, 'grace');
   fs.rmSync(new URL('../.revoked.json', import.meta.url), { force: true });
+});
+
+test('authenticate rejects a valid token whose account no longer exists', () => {
+  // mallory has a cryptographically valid token but is not in the user store.
+  assert.equal(verifyToken(signToken('mallory', 'user')) !== null, true); // token itself is valid
+  assert.equal(authenticate(signToken('mallory', 'user')), null);          // but account is gone
+});
+
+test('authenticate takes the role from the store, not the token', () => {
+  // dan is a 'user' in the store even though the token claims 'admin'.
+  assert.equal(authenticate(signToken('dan', 'admin')).role, 'user');
 });
 
 test('requireAuth blocks missing/invalid tokens and admits valid ones', () => {

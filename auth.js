@@ -23,7 +23,7 @@ import { createServer as createHttpsServer } from 'https';
 import { fileURLToPath } from 'url';
 
 const __dirname    = path.dirname(fileURLToPath(import.meta.url));
-const USERS_FILE   = path.join(__dirname, 'users.json');
+const USERS_FILE   = process.env.USERS_FILE || path.join(__dirname, 'users.json');
 const SECRET_FILE  = path.join(__dirname, '.session_secret');
 const REVOKED_FILE = path.join(__dirname, '.revoked.json');
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
@@ -136,10 +136,34 @@ export function verifyToken(token) {
   return { username: data.sub, role: data.role || 'user' };
 }
 
+// Read the user store with mtime caching, without triggering admin bootstrap.
+let _usersCache = { mtime: 0, data: {} };
+function currentUsers() {
+  try {
+    const stat = fs.statSync(USERS_FILE);
+    if (stat.mtimeMs !== _usersCache.mtime) {
+      _usersCache = { mtime: stat.mtimeMs, data: JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')) };
+    }
+  } catch { return {}; }
+  return _usersCache.data;
+}
+
+// Full authentication: valid token AND the account still exists. The role is
+// taken from the live user store, so deleting a user or changing their role
+// takes effect immediately on the next request — active tokens are not trusted
+// for identity beyond the username.
+export function authenticate(token) {
+  const u = verifyToken(token);
+  if (!u) return null;
+  const rec = currentUsers()[u.username];
+  if (!rec) return null;                               // account removed → reject
+  return { username: u.username, role: rec.role || 'user' };
+}
+
 // ─── Express middleware ───────────────────────────────────────────────────────
 export function requireAuth(req, res, next) {
   const h    = req.headers.authorization || '';
-  const user = verifyToken(h.startsWith('Bearer ') ? h.slice(7) : null);
+  const user = authenticate(h.startsWith('Bearer ') ? h.slice(7) : null);
   if (!user) return res.status(401).json({ ok: false, error: 'Unauthorized — login required' });
   req.user = user;
   next();

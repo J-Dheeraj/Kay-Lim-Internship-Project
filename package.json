@@ -4,6 +4,9 @@
   "description": "ACC proxy backend for KLIM/Kay Lim construction dashboard",
   "type": "module",
   "main": "acc_backend_server.js",
+  "engines": {
+    "node": "20.x || 22.x"
+  },
   "scripts": {
     "start": "node acc_backend_server.js",
     "dev": "node --watch acc_backend_server.js",

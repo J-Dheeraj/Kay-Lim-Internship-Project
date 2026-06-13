@@ -935,11 +935,20 @@ const chDLLead=mkChart('c-dl-lead',{type:'bar',data:{labels:['YTL Precast','Stra
    ═══════════════════════════════════════════════════════ */
 async function loadAll(){
   const health=await tryFetch('/api/health',null);
-  const live=health&&health.status==='ok';
-  setEl('srcLabel',live?'Live data':'Mock data (backend offline)');
+  const backendOk=health&&health.status==='ok';
 
   /* connection status */
   const intStatus=await tryFetch('/api/integrations/status',null);
+  /* Provenance: backend health alone does NOT mean the data is live. A source
+     is only live if its integration is configured; otherwise it is demo data. */
+  if(!backendOk){
+    setEl('srcLabel','Mock data (backend offline)');
+  }else{
+    const configured=intStatus?['acc','qse','unicon','pbi'].filter(k=>intStatus[k]&&intStatus[k].configured):[];
+    setEl('srcLabel',configured.length
+      ? 'Live: '+configured.map(k=>k.toUpperCase()).join(', ')+' · other sources demo'
+      : 'Demo data — no live integrations configured');
+  }
   if(intStatus){
     ['acc','qse','unicon','pbi'].forEach(k=>{
       const cfg=intStatus[k]&&intStatus[k].configured;
