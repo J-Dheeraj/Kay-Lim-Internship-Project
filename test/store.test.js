@@ -96,3 +96,35 @@ test('dashboardRaw aggregates in SQL', () => {
   assert.equal(d.weeklyPlanned.length, 6);
   assert.ok(d.actualDates.includes('2026-06-02'));
 });
+
+test('ctx.audit writes a hash-chained row inside the mutation transaction', () => {
+  const before = store.verifyAuditChain().count || 0;
+  store.withElement('E2', (e, ctx) => {
+    e.status = 'ready_delivery';
+    ctx.audit('element.status', { elementId: e.id, status: e.status });
+    return e;
+  }, { actor: 'inspector-a', ip: '10.0.0.1' });
+  const chain = store.verifyAuditChain();
+  assert.equal(chain.valid, true);
+  assert.equal(chain.count, before + 1);                       // exactly one row added
+  assert.equal(store.getElement('E2').status, 'ready_delivery');
+});
+
+test('audit + mutation are atomic: a throw rolls BOTH back (fail-closed)', () => {
+  const beforeStatus = store.getElement('E2').status;
+  const beforeAudit  = store.verifyAuditChain().count;
+  assert.throws(() => {
+    store.withElement('E2', (e, ctx) => {
+      e.status = 'delivered';
+      ctx.audit('element.status', { status: 'delivered' });   // audit in same tx
+      throw new Error('boom after audit');                    // force rollback
+    }, { actor: 'x' });
+  }, /boom after audit/);
+  assert.equal(store.getElement('E2').status, beforeStatus, 'mutation rolled back');
+  assert.equal(store.verifyAuditChain().count, beforeAudit, 'audit row rolled back too');
+});
+
+test('standalone audit chains and tampering is detectable', () => {
+  store.audit({ actor: 'admin', ip: '10.0.0.1', action: 'db.reset', details: { backup: 'x.json' } });
+  assert.equal(store.verifyAuditChain().valid, true);
+});

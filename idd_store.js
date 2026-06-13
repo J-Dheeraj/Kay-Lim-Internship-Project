@@ -18,6 +18,7 @@
  * from the ncrs table, so route handlers keep operating on the same shape.
  */
 import Database from 'better-sqlite3';
+import crypto from 'node:crypto';
 
 export function createStore(dbFile) {
   const db = new Database(dbFile);
@@ -49,6 +50,11 @@ export function createStore(dbFile) {
     CREATE INDEX IF NOT EXISTS idx_ncrs_status  ON ncrs(status);
     CREATE INDEX IF NOT EXISTS idx_ncrs_element ON ncrs(elementId);
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE IF NOT EXISTS audit (
+      seq INTEGER PRIMARY KEY AUTOINCREMENT,
+      at TEXT, actor TEXT, ip TEXT, action TEXT, detail TEXT,
+      prevHash TEXT, hash TEXT
+    );
   `);
 
   // ─── prepared statements ───────────────────────────────────────────────────
@@ -80,6 +86,36 @@ export function createStore(dbFile) {
   const metaGet = (k, dflt) => { const r = sMetaGet.get(k); return r ? JSON.parse(r.value) : dflt; };
   const metaSet = (k, v) => sMetaSet.run(k, JSON.stringify(v));
 
+  // ─── Audit (hash-chained, written inside the mutation transaction) ──────────
+  const sAuditLast = db.prepare('SELECT hash FROM audit ORDER BY seq DESC LIMIT 1');
+  const sAuditIns  = db.prepare(`INSERT INTO audit (at, actor, ip, action, detail, prevHash, hash)
+                                 VALUES (@at, @actor, @ip, @action, @detail, @prevHash, @hash)`);
+  const sAuditAll  = db.prepare('SELECT * FROM audit ORDER BY seq');
+  const auditHashable = r => ({ at:r.at, actor:r.actor, ip:r.ip, action:r.action, detail:r.detail, prevHash:r.prevHash });
+  // Append one audit entry. Called within a transaction, so if this throws the
+  // whole mutation rolls back — a mutation is never persisted without its audit.
+  function appendAudit({ actor, ip, action, details }) {
+    const prevHash = sAuditLast.get()?.hash || '';
+    const row = {
+      at: new Date().toISOString(), actor: actor || 'unknown', ip: ip || null,
+      action, detail: JSON.stringify(details || {}), prevHash,
+    };
+    row.hash = crypto.createHash('sha256').update(prevHash + JSON.stringify(auditHashable(row))).digest('hex');
+    sAuditIns.run(row);
+  }
+  // Stand-alone audit (own transaction) for actions not tied to an element.
+  function audit(entry) { db.transaction(() => appendAudit(entry))(); }
+  // Recompute the chain and report the first break, if any.
+  function verifyAuditChain() {
+    let prev = '', count = 0;
+    for (const r of sAuditAll.all()) {
+      const calc = crypto.createHash('sha256').update(prev + JSON.stringify(auditHashable(r))).digest('hex');
+      if (r.prevHash !== prev || calc !== r.hash) return { valid: false, brokenAtSeq: r.seq };
+      prev = r.hash; count++;
+    }
+    return { valid: true, count };
+  }
+
   // Reconstruct a full element (doc + its NCRs from the ncrs table).
   function getElement(id) {
     const row = sGetEl.get(id);
@@ -106,7 +142,9 @@ export function createStore(dbFile) {
 
   // Run fn(el, ctx) inside a transaction and persist the mutated element.
   // ctx.nextNcrNo() atomically increments the NCR counter within the same tx.
-  function withElement(id, fn) {
+  // ctx.audit(action, details) records an audit entry in the SAME transaction,
+  // so the audit and the mutation commit or roll back together (fail-closed).
+  function withElement(id, fn, auditMeta = {}) {
     return db.transaction(() => {
       const el = getElement(id);
       if (!el) return NOT_FOUND;
@@ -116,6 +154,7 @@ export function createStore(dbFile) {
           metaSet('ncrCounter', n);
           return `NCR-${new Date().getFullYear()}-${String(n).padStart(4, '0')}`;
         },
+        audit(action, details) { appendAudit({ actor: auditMeta.actor, ip: auditMeta.ip, action, details }); },
       };
       const value = fn(el, ctx);
       persistElement(el);
@@ -123,14 +162,15 @@ export function createStore(dbFile) {
     })();
   }
 
-  // Run fn(el, ncr) for the element owning ncrId; persist the element.
-  function withNcr(ncrId, fn) {
+  // Run fn(el, ncr, ctx) for the element owning ncrId; persist the element.
+  function withNcr(ncrId, fn, auditMeta = {}) {
     return db.transaction(() => {
       const ref = sGetNcr.get(ncrId);
       if (!ref) return NOT_FOUND;
       const el = getElement(ref.elementId);
       const ncr = el.ncrs.find(n => n.id === ncrId);
-      const value = fn(el, ncr);
+      const ctx = { audit(action, details) { appendAudit({ actor: auditMeta.actor, ip: auditMeta.ip, action, details }); } };
+      const value = fn(el, ncr, ctx);
       persistElement(el);
       return value;
     })();
@@ -226,7 +266,8 @@ export function createStore(dbFile) {
   }
 
   return { getElement, withElement, withNcr, listElements, listNcrs,
-           dashboardRaw, isEmpty, counts, exportAll, migrateLegacyBlob, seed, NOT_FOUND };
+           dashboardRaw, isEmpty, counts, exportAll, migrateLegacyBlob, seed,
+           audit, verifyAuditChain, NOT_FOUND };
 }
 
 export function checklistProgress(checklist) {

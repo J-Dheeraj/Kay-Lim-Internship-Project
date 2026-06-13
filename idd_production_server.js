@@ -130,36 +130,11 @@ function broadcast(event, payload) { io.emit(event, payload); }
 // ─── Relational store (better-sqlite3, WAL — see idd_store.js) ────────────────
 const store = createStore(DB_FILE);
 
-// Append-only, hash-chained audit trail — one JSON line per mutation. Each
-// entry includes the SHA-256 of (previous hash + this entry), so any later
-// edit or deletion breaks the chain and is detectable. Written synchronously
-// before the response returns, so a recorded action is always persisted.
-const AUDIT_FILE = path.join(__dirname, 'idd_audit.log');
-let _auditPrevHash = (() => {
-  try {
-    const lines = fs.readFileSync(AUDIT_FILE, 'utf8').trim().split('\n').filter(Boolean);
-    if (lines.length) return JSON.parse(lines[lines.length - 1]).hash || '';
-  } catch { /* no log yet */ }
-  return '';
-})();
-
-function audit(req, action, details) {
-  const entry = {
-    at: new Date().toISOString(),
-    actor: req.user?.username || 'unknown',
-    ip: req.ip,
-    action, ...details,
-    prevHash: _auditPrevHash,
-  };
-  entry.hash = crypto.createHash('sha256')
-    .update(_auditPrevHash + JSON.stringify(entry)).digest('hex');
-  try {
-    fs.appendFileSync(AUDIT_FILE, JSON.stringify(entry) + '\n');
-    _auditPrevHash = entry.hash;
-  } catch (err) {
-    console.error('  [AUDIT] write failed:', err.message);
-  }
-}
+// Audit is hash-chained and written INSIDE each mutation's SQLite transaction
+// (see idd_store.js: ctx.audit / store.audit). Audit and mutation therefore
+// commit or roll back together — a mutation can never succeed without its audit
+// record (fail-closed). auditMeta carries the actor/IP into the transaction.
+const auditMeta = req => ({ actor: req.user?.username || 'unknown', ip: req.ip });
 
 function uid() { return crypto.randomBytes(6).toString('hex'); }
 
@@ -334,18 +309,18 @@ app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, (
     return res.status(400).json({ ok:false, error:'Invalid status value' });
   const byStr = req.user.username;  // identity from verified token, not request body
 
-  const el = store.withElement(req.params.id, (el) => {
+  const el = store.withElement(req.params.id, (el, ctx) => {
     el.statusHistory.push({ from:el.status, to:status, by:byStr, at:new Date().toISOString() });
     el.status    = status;
     el.updatedAt = new Date().toISOString();
     if (status === 'in_production') el.actualProductionDate = new Date().toISOString().split('T')[0];
+    ctx.audit('element.status', { elementId:el.id, status:el.status });
     return el;
-  });
+  }, auditMeta(req));
   if (el === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
 
   broadcast('element:updated', { id:el.id, status:el.status, by:byStr, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
-  audit(req, 'element.status', { elementId:el.id, status:el.status });
   res.json({ ok:true, element:el });
 });
 
@@ -355,7 +330,7 @@ app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter
   if (!Array.isArray(items)) return res.status(400).json({ error:'items must be an array' });
   const checkedByStr = req.user.username;  // identity from verified token
 
-  const el = store.withElement(req.params.id, (el) => {
+  const el = store.withElement(req.params.id, (el, ctx) => {
     items.forEach(upd => {
       if (!upd?.id) return;
       const item = el.checklist.find(i => i.id === upd.id);
@@ -376,8 +351,9 @@ app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter
       el.status = newStatus;
     }
     el.updatedAt = new Date().toISOString();
+    ctx.audit('element.checklist', { elementId:el.id, status:el.status });
     return el;
-  });
+  }, auditMeta(req));
   if (el === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
 
   broadcast('element:updated', {
@@ -386,7 +362,6 @@ app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter
     updatedAt: el.updatedAt,
   });
   broadcast('dashboard:refresh', {});
-  audit(req, 'element.checklist', { elementId:el.id, status:el.status });
   res.json({ ok:true, element:el });
 });
 
@@ -413,15 +388,15 @@ app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, (req
       el.status = 'ncr_open';
     }
     el.updatedAt = new Date().toISOString();
+    ctx.audit('ncr.raise', { elementId:el.id, ncrNo:ncr.ncrNo, severity:ncr.severity });
     return { el, ncr };
-  });
+  }, auditMeta(req));
   if (out === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
   const { el, ncr } = out;
 
   broadcast('ncr:raised',      { ncrNo:ncr.ncrNo, elementId:el.id, severity:ncr.severity, raisedBy:ncr.raisedBy });
   broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
-  audit(req, 'ncr.raise', { elementId:el.id, ncrNo:ncr.ncrNo, severity:ncr.severity });
   res.status(201).json({ ok:true, ncr });
 });
 
@@ -431,7 +406,7 @@ app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, (req, res
   if (status && !['open','in_progress','closed'].includes(status))
     return res.status(400).json({ ok:false, error:'Invalid NCR status' });
 
-  const out = store.withNcr(req.params.ncrId, (el, ncr) => {
+  const out = store.withNcr(req.params.ncrId, (el, ncr, ctx) => {
     if (status) ncr.status = status;
     if (correctiveAction !== undefined) ncr.correctiveAction = str(correctiveAction, 2000) || ncr.correctiveAction;
     if (status === 'closed') {
@@ -443,15 +418,15 @@ app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, (req, res
       el.status = 'pending_qc';
     }
     el.updatedAt = new Date().toISOString();
+    ctx.audit('ncr.update', { ncrNo:ncr.ncrNo, status:ncr.status });
     return { el, ncr };
-  });
+  }, auditMeta(req));
   if (out === store.NOT_FOUND) return res.status(404).json({ error:'NCR not found' });
   const { el, ncr } = out;
 
   broadcast('ncr:updated',     { id:ncr.id, ncrNo:ncr.ncrNo, status:ncr.status, elementId:ncr.elementId });
   broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
-  audit(req, 'ncr.update', { ncrNo:ncr.ncrNo, status:ncr.status });
   res.json({ ok:true, ncr });
 });
 
@@ -466,9 +441,14 @@ app.post('/api/production/reset', requireAdmin, mutationLimiter, (req, res) => {
   const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
   fs.writeFileSync(backup, JSON.stringify(store.exportAll(), null, 2));
   seedDB();
+  store.audit({ ...auditMeta(req), action: 'db.reset', details: { backup: path.basename(backup) } });
   broadcast('dashboard:refresh', {});
-  audit(req, 'db.reset', { backup: path.basename(backup) });
   res.json({ ok:true, message:'Database reset to seed data', backup: path.basename(backup) });
+});
+
+// ─── Audit chain verification (admin) ────────────────────────────────────────
+app.get('/api/production/audit/verify', requireAdmin, (_req, res) => {
+  res.json(store.verifyAuditChain());
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
