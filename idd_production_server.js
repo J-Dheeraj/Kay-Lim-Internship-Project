@@ -32,13 +32,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
-import Database from 'better-sqlite3';
+import { createStore } from './idd_store.js';
 import { requireAuth, requireAdmin, loginHandler, logoutHandler, authenticate, makeServer } from './auth.js';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || `http://localhost:${PORT}`;
-const DATA_FILE      = path.join(__dirname, 'idd_data.json');   // legacy — migrated on first run
 const DB_FILE        = path.join(__dirname, 'idd.db');
 
 // ─── Express + Socket.io setup ───────────────────────────────────────────────
@@ -128,37 +127,8 @@ io.on('connection', socket => {
 
 function broadcast(event, payload) { io.emit(event, payload); }
 
-// ─── SQLite storage (better-sqlite3, WAL) ────────────────────────────────────
-// The production state is held in a single document row, persisted through
-// SQLite so every write is a synchronous, atomic, crash-safe ACID commit —
-// no truncated files, no partial writes, no lost updates under concurrency.
-const sqlite = new Database(DB_FILE);
-sqlite.pragma('journal_mode = WAL');
-sqlite.exec('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
-const _get = sqlite.prepare('SELECT value FROM kv WHERE key = ?');
-const _put = sqlite.prepare(
-  'INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
-);
-
-function loadDB() {
-  const row = _get.get('db');
-  if (row) return JSON.parse(row.value);
-  // One-time migration: import a legacy idd_data.json if present.
-  if (fs.existsSync(DATA_FILE)) {
-    const legacy = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    _put.run('db', JSON.stringify(legacy));
-    console.log('  [DB] migrated legacy idd_data.json into SQLite');
-    return legacy;
-  }
-  return null;
-}
-
-// Synchronous ACID commit. Async signature kept so callers can `await` it.
-function saveDB(db) {
-  try { _put.run('db', JSON.stringify(db)); }
-  catch (err) { console.error('  [DB] write failed:', err.message); }
-  return Promise.resolve();
-}
+// ─── Relational store (better-sqlite3, WAL — see idd_store.js) ────────────────
+const store = createStore(DB_FILE);
 
 // Append-only, hash-chained audit trail — one JSON line per mutation. Each
 // entry includes the SHA-256 of (previous hash + this entry), so any later
@@ -287,38 +257,25 @@ function seedDB() {
     }
   }
 
-  const ncrs = elements.flatMap(e => e.ncrs);
+  const ncrCount = elements.reduce((n, e) => n + e.ncrs.length, 0);
   // Stable weekly planned values — seeded once, never jitter on dashboard refresh
   const weeklyPlanned = Array.from({ length:6 }, () => 8 + Math.floor(Math.random() * 4));
 
-  const db = {
-    meta: { ncrCounter: ncrs.length, weeklyPlanned },
-    elements, ncrs,
-    lastUpdated: now.toISOString(),
-  };
-  _put.run('db', JSON.stringify(db));   // commit seed to SQLite
-  console.log(`  Seeded ${elements.length} elements, ${ncrs.length} NCRs`);
-  return db;
+  store.seed(elements, weeklyPlanned);
+  console.log(`  Seeded ${elements.length} elements, ${ncrCount} NCRs`);
 }
 
-// ─── Load or create DB ───────────────────────────────────────────────────────
-let db = loadDB() || seedDB();
-
-// Backfill meta if loading a DB created before this version
-if (!db.meta) {
-  db.meta = {
-    ncrCounter:    db.ncrs.length,
-    weeklyPlanned: Array.from({ length:6 }, () => 8 + Math.floor(Math.random() * 4)),
-  };
-}
+// ─── Seed on first run (or migrate from the interim blob format) ─────────────
+if (store.migrateLegacyBlob()) console.log('  [DB] migrated legacy blob → relational tables');
+else if (store.isEmpty()) seedDB();
 
 // ─── Dashboard endpoint ──────────────────────────────────────────────────────
 app.get('/api/production/dashboard', requireAuth, (_req, res) => {
-  const els = db.elements;
-  const total = els.length;
+  const { statusCounts, typeCounts, total, actualDates, openNCRs, closedNCRs,
+          weeklyPlanned, lastUpdated } = store.dashboardRaw();
+
   const byStatus = {};
-  STATUSES.forEach(s => { byStatus[s] = 0; });
-  els.forEach(e => { byStatus[e.status] = (byStatus[e.status] || 0) + 1; });
+  STATUSES.forEach(s => { byStatus[s] = statusCounts[s] || 0; });
 
   const passed    = (byStatus.qc_passed||0) + (byStatus.ready_delivery||0) + (byStatus.delivered||0);
   const inProd    =  byStatus.in_production  || 0;
@@ -327,17 +284,16 @@ app.get('/api/production/dashboard', requireAuth, (_req, res) => {
   const readyDel  =  byStatus.ready_delivery || 0;
   const delivered =  byStatus.delivered      || 0;
 
-  // Weekly production — planned values come from db.meta so they never jitter
+  // Weekly production — planned values come from meta so they never jitter
   const now = new Date();
-  const weeks = db.meta.weeklyPlanned.map((planned, i) => {
+  const weeks = weeklyPlanned.map((planned, i) => {
     const w = 5 - i;
     const weekStart = new Date(now); weekStart.setDate(weekStart.getDate() - w * 7 - 6);
     const weekEnd   = new Date(now); weekEnd.setDate(weekEnd.getDate()   - w * 7);
     const label  = `W${i + 1}`;
-    const actual = els.filter(e => {
-      if (!e.actualProductionDate) return false;
-      const d = new Date(e.actualProductionDate);
-      return d >= weekStart && d <= weekEnd;
+    const actual = actualDates.filter(d => {
+      const dt = new Date(d);
+      return dt >= weekStart && dt <= weekEnd;
     }).length;
     return { label, planned, actual };
   });
@@ -351,62 +307,42 @@ app.get('/api/production/dashboard', requireAuth, (_req, res) => {
     cumul.actual.push(cumActual);
   });
 
-  const byType = {};
-  els.forEach(e => { byType[e.type] = (byType[e.type] || 0) + 1; });
-
-  const openNCRs   = db.ncrs.filter(n => n.status === 'open').length;
-  const closedNCRs = db.ncrs.filter(n => n.status === 'closed').length;
-
   res.json({
     total, passed, inProd, pendingQC, ncrOpen, readyDel, delivered,
     completionRate: total ? Math.round((passed / total) * 100) : 0,
-    byStatus, byType, weeks, cumul,
-    openNCRs, closedNCRs, lastUpdated: db.lastUpdated,
+    byStatus, byType: typeCounts, weeks, cumul,
+    openNCRs, closedNCRs, lastUpdated,
   });
 });
 
 // ─── Element list ─────────────────────────────────────────────────────────────
 app.get('/api/production/elements', requireAuth, (req, res) => {
-  const { status, block, type, q } = req.query;
-  let els = db.elements;
-  if (status) els = els.filter(e => e.status === status);
-  if (block)  els = els.filter(e => e.block  === block);
-  if (type)   els = els.filter(e => e.type   === type);
-  if (q) {
-    const lq = q.toLowerCase();
-    els = els.filter(e => e.id.toLowerCase().includes(lq) || e.batch.toLowerCase().includes(lq));
-  }
-  res.json(els.map(e => ({
-    id:e.id, seq:e.seq, type:e.type, block:e.block, level:e.level,
-    position:e.position, batch:e.batch, status:e.status,
-    plannedDate:e.plannedDate, actualProductionDate:e.actualProductionDate,
-    ncrCount:e.ncrs.length, checklistProgress: checklistProgress(e.checklist),
-  })));
+  res.json(store.listElements(req.query));
 });
 
 // ─── Element detail ───────────────────────────────────────────────────────────
 app.get('/api/production/elements/:id', requireAuth, (req, res) => {
-  const el = db.elements.find(e => e.id === req.params.id);
+  const el = store.getElement(req.params.id);
   if (!el) return res.status(404).json({ error:'Not found' });
   res.json(el);
 });
 
 // ─── Update element status ────────────────────────────────────────────────────
-app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, async (req, res) => {
-  const el = db.elements.find(e => e.id === req.params.id);
-  if (!el) return res.status(404).json({ error:'Not found' });
-
+app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, (req, res) => {
   const { status } = req.body;
   if (!VALID_STATUSES.has(status))
     return res.status(400).json({ ok:false, error:'Invalid status value' });
   const byStr = req.user.username;  // identity from verified token, not request body
 
-  el.statusHistory.push({ from:el.status, to:status, by:byStr, at:new Date().toISOString() });
-  el.status    = status;
-  el.updatedAt = new Date().toISOString();
-  if (status === 'in_production') el.actualProductionDate = new Date().toISOString().split('T')[0];
-  db.lastUpdated = new Date().toISOString();
-  await saveDB(db);
+  const el = store.withElement(req.params.id, (el) => {
+    el.statusHistory.push({ from:el.status, to:status, by:byStr, at:new Date().toISOString() });
+    el.status    = status;
+    el.updatedAt = new Date().toISOString();
+    if (status === 'in_production') el.actualProductionDate = new Date().toISOString().split('T')[0];
+    return el;
+  });
+  if (el === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
+
   broadcast('element:updated', { id:el.id, status:el.status, by:byStr, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
   audit(req, 'element.status', { elementId:el.id, status:el.status });
@@ -414,37 +350,36 @@ app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, a
 });
 
 // ─── Submit / update inspection checklist ────────────────────────────────────
-app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter, async (req, res) => {
-  const el = db.elements.find(e => e.id === req.params.id);
-  if (!el) return res.status(404).json({ error:'Not found' });
-
+app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter, (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items)) return res.status(400).json({ error:'items must be an array' });
   const checkedByStr = req.user.username;  // identity from verified token
 
-  items.forEach(upd => {
-    if (!upd?.id) return;
-    const item = el.checklist.find(i => i.id === upd.id);
-    if (!item) return;
-    if (upd.result !== undefined && VALID_RESULTS.has(upd.result)) item.result = upd.result;
-    if (typeof upd.remarks  === 'string') item.remarks  = upd.remarks.slice(0, 1000);
-    if (typeof upd.photoUrl === 'string') item.photoUrl = upd.photoUrl.slice(0, 500);
-    item.checkedBy = checkedByStr;
-    item.checkedAt = new Date().toISOString();
+  const el = store.withElement(req.params.id, (el) => {
+    items.forEach(upd => {
+      if (!upd?.id) return;
+      const item = el.checklist.find(i => i.id === upd.id);
+      if (!item) return;
+      if (upd.result !== undefined && VALID_RESULTS.has(upd.result)) item.result = upd.result;
+      if (typeof upd.remarks  === 'string') item.remarks  = upd.remarks.slice(0, 1000);
+      if (typeof upd.photoUrl === 'string') item.photoUrl = upd.photoUrl.slice(0, 500);
+      item.checkedBy = checkedByStr;
+      item.checkedAt = new Date().toISOString();
+    });
+
+    // Auto-advance status when all items are checked
+    const allChecked = el.checklist.every(i => i.result !== null);
+    const anyFail    = el.checklist.some(i => i.result === 'fail');
+    if (allChecked) {
+      const newStatus = anyFail ? 'ncr_open' : 'qc_passed';
+      el.statusHistory.push({ from:el.status, to:newStatus, by:checkedByStr, at:new Date().toISOString() });
+      el.status = newStatus;
+    }
+    el.updatedAt = new Date().toISOString();
+    return el;
   });
+  if (el === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
 
-  // Auto-advance status when all items are checked
-  const allChecked = el.checklist.every(i => i.result !== null);
-  const anyFail    = el.checklist.some(i => i.result === 'fail');
-  if (allChecked) {
-    const newStatus = anyFail ? 'ncr_open' : 'qc_passed';
-    el.statusHistory.push({ from:el.status, to:newStatus, by:checkedByStr, at:new Date().toISOString() });
-    el.status = newStatus;
-  }
-
-  el.updatedAt   = new Date().toISOString();
-  db.lastUpdated = new Date().toISOString();
-  await saveDB(db);
   broadcast('element:updated', {
     id:el.id, status:el.status, by:checkedByStr,
     checklistPct: Math.round(el.checklist.filter(i => i.result !== null).length / el.checklist.length * 100),
@@ -456,10 +391,7 @@ app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter
 });
 
 // ─── Raise NCR ────────────────────────────────────────────────────────────────
-app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, async (req, res) => {
-  const el = db.elements.find(e => e.id === req.params.id);
-  if (!el) return res.status(404).json({ error:'Not found' });
-
+app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, (req, res) => {
   const description = str(req.body.description, 2000);
   if (!description)
     return res.status(400).json({ ok:false, error:'description is required (max 2000 chars)' });
@@ -468,24 +400,24 @@ app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, asyn
   const location = str(req.body.location, 500) || '';
   const raisedBy = req.user.username;  // identity from verified token
 
-  // Atomic counter — no collision risk from concurrent submits
-  db.meta.ncrCounter = (db.meta.ncrCounter || 0) + 1;
-  const ncrNo = `NCR-${new Date().getFullYear()}-${String(db.meta.ncrCounter).padStart(4,'0')}`;
+  const out = store.withElement(req.params.id, (el, ctx) => {
+    // Counter incremented inside the same transaction — no collision risk
+    const ncr = {
+      id: uid(), elementId:el.id, ncrNo: ctx.nextNcrNo(), description, severity, location, raisedBy,
+      raisedAt: new Date().toISOString(),
+      status: 'open', correctiveAction:'', closedBy:null, closedAt:null, photos:[],
+    };
+    el.ncrs.push(ncr);
+    if (el.status !== 'ncr_open') {
+      el.statusHistory.push({ from:el.status, to:'ncr_open', by:raisedBy, at:new Date().toISOString() });
+      el.status = 'ncr_open';
+    }
+    el.updatedAt = new Date().toISOString();
+    return { el, ncr };
+  });
+  if (out === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
+  const { el, ncr } = out;
 
-  const ncr = {
-    id: uid(), elementId:el.id, ncrNo, description, severity, location, raisedBy,
-    raisedAt: new Date().toISOString(),
-    status: 'open', correctiveAction:'', closedBy:null, closedAt:null, photos:[],
-  };
-  el.ncrs.push(ncr);
-  db.ncrs.push(ncr);
-  if (el.status !== 'ncr_open') {
-    el.statusHistory.push({ from:el.status, to:'ncr_open', by:raisedBy, at:new Date().toISOString() });
-    el.status = 'ncr_open';
-  }
-  el.updatedAt   = new Date().toISOString();
-  db.lastUpdated = new Date().toISOString();
-  await saveDB(db);
   broadcast('ncr:raised',      { ncrNo:ncr.ncrNo, elementId:el.id, severity:ncr.severity, raisedBy:ncr.raisedBy });
   broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
@@ -494,36 +426,30 @@ app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, asyn
 });
 
 // ─── Close / update NCR ───────────────────────────────────────────────────────
-app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, async (req, res) => {
-  const ncr = db.ncrs.find(n => n.id === req.params.ncrId);
-  if (!ncr) return res.status(404).json({ error:'NCR not found' });
-
+app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, (req, res) => {
   const { status, correctiveAction } = req.body;
   if (status && !['open','in_progress','closed'].includes(status))
     return res.status(400).json({ ok:false, error:'Invalid NCR status' });
 
-  if (status) ncr.status = status;
-  if (correctiveAction !== undefined) ncr.correctiveAction = str(correctiveAction, 2000) || ncr.correctiveAction;
-  if (status === 'closed') {
-    ncr.closedBy = req.user.username;  // identity from verified token
-    ncr.closedAt = new Date().toISOString();
-  }
-
-  const el = db.elements.find(e => e.id === ncr.elementId);
-  if (el) {
-    const elNcr = el.ncrs.find(n => n.id === ncr.id);
-    if (elNcr) Object.assign(elNcr, ncr);
+  const out = store.withNcr(req.params.ncrId, (el, ncr) => {
+    if (status) ncr.status = status;
+    if (correctiveAction !== undefined) ncr.correctiveAction = str(correctiveAction, 2000) || ncr.correctiveAction;
+    if (status === 'closed') {
+      ncr.closedBy = req.user.username;  // identity from verified token
+      ncr.closedAt = new Date().toISOString();
+    }
     if (status === 'closed' && el.ncrs.every(n => n.status === 'closed')) {
       el.statusHistory.push({ from:el.status, to:'pending_qc', by:req.user.username, at:new Date().toISOString() });
       el.status = 'pending_qc';
     }
     el.updatedAt = new Date().toISOString();
-  }
+    return { el, ncr };
+  });
+  if (out === store.NOT_FOUND) return res.status(404).json({ error:'NCR not found' });
+  const { el, ncr } = out;
 
-  db.lastUpdated = new Date().toISOString();
-  await saveDB(db);
   broadcast('ncr:updated',     { id:ncr.id, ncrNo:ncr.ncrNo, status:ncr.status, elementId:ncr.elementId });
-  if (el) broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
+  broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
   broadcast('dashboard:refresh', {});
   audit(req, 'ncr.update', { ncrNo:ncr.ncrNo, status:ncr.status });
   res.json({ ok:true, ncr });
@@ -531,30 +457,19 @@ app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, async (re
 
 // ─── All NCRs ─────────────────────────────────────────────────────────────────
 app.get('/api/production/ncrs', requireAuth, (req, res) => {
-  const { status } = req.query;
-  let ncrs = db.ncrs;
-  if (status) ncrs = ncrs.filter(n => n.status === status);
-  res.json(ncrs);
+  res.json(store.listNcrs(req.query.status));
 });
 
 // ─── Reset to seed (dev utility — admin only) ────────────────────────────────
-app.post('/api/production/reset', requireAdmin, mutationLimiter, async (req, res) => {
+app.post('/api/production/reset', requireAdmin, mutationLimiter, (req, res) => {
   // Back up current data (exported from SQLite) before wiping
   const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
-  const current = _get.get('db');
-  if (current) fs.writeFileSync(backup, current.value);
-  db = seedDB();
+  fs.writeFileSync(backup, JSON.stringify(store.exportAll(), null, 2));
+  seedDB();
   broadcast('dashboard:refresh', {});
   audit(req, 'db.reset', { backup: path.basename(backup) });
   res.json({ ok:true, message:'Database reset to seed data', backup: path.basename(backup) });
 });
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function checklistProgress(checklist) {
-  if (!checklist || checklist.length === 0) return { done:0, total:0, pct:0 };
-  const done = checklist.filter(i => i.result !== null).length;
-  return { done, total: checklist.length, pct: Math.round((done / checklist.length) * 100) };
-}
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 httpServer.listen(PORT, () => {
@@ -566,7 +481,8 @@ httpServer.listen(PORT, () => {
   console.log(`  WebSocket: ${tls ? 'wss' : 'ws'}://localhost:${PORT}   (Socket.io)`);
   console.log(`  Frontend:  ${scheme}://localhost:${PORT}/`);
   console.log(`  Data:      ${DB_FILE} (SQLite, WAL)`);
-  console.log(`  Records:   ${db.elements.length} elements, ${db.ncrs.length} NCRs`);
+  const { elements: nEl, ncrs: nNcr } = store.counts();
+  console.log(`  Records:   ${nEl} elements, ${nNcr} NCRs`);
   if (ALLOWED_ORIGIN !== `http://localhost:${PORT}`)
     console.log(`  CORS:      ${ALLOWED_ORIGIN}`);
   console.log(`  Auth:      per-user login (manage users: node auth.js add-user <name> <password>)`);
