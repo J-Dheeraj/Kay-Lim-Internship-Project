@@ -446,6 +446,20 @@ select.flt:focus{border-color:var(--teal)}
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- Login overlay — shown until a valid session token exists -->
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:1000;align-items:center;justify-content:center">
+  <form onsubmit="doLogin(event)" style="background:#fff;border-radius:12px;padding:2rem;width:320px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <h2 style="margin:0 0 .25rem;font-size:1.1rem">IDD Digital Production</h2>
+    <p style="margin:0 0 1.25rem;font-size:.82rem;color:#6b7280">Sign in to continue</p>
+    <input id="login-user" placeholder="Username" autocomplete="username" required
+           style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.55rem .7rem;border:1px solid #d1d5db;border-radius:8px;font-size:.9rem">
+    <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password" required
+           style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.55rem .7rem;border:1px solid #d1d5db;border-radius:8px;font-size:.9rem">
+    <div id="login-error" style="color:#dc2626;font-size:.8rem;min-height:1.1rem;margin-bottom:.5rem"></div>
+    <button type="submit" style="width:100%;padding:.6rem;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:.92rem;cursor:pointer">Sign in</button>
+  </form>
+</div>
+
 <!-- Activity feed (real-time events from other users) -->
 <div class="activity-feed" id="activity-feed"></div>
 
@@ -455,14 +469,40 @@ select.flt:focus{border-color:var(--teal)}
 const BASE = window.location.origin;
 const API  = BASE + '/api/production';
 
-// Auth token injected by the server into <meta name="idd-token">
-const IDD_TOKEN = document.querySelector('meta[name="idd-token"]')?.content || '';
+// ─── Auth — per-user session token from POST /api/login ─────────────────────
+let TOKEN       = sessionStorage.getItem('idd_token') || '';
+let currentUser = sessionStorage.getItem('idd_user')  || '';
 
-// Current user — stored in localStorage, prompted once on first visit
-let currentUser = localStorage.getItem('idd_user') || '';
-if (!currentUser) {
-  currentUser = (prompt('Enter your name for the QC audit trail:') || 'Anonymous').trim().slice(0, 100);
-  localStorage.setItem('idd_user', currentUser);
+function authHeaders() { return TOKEN ? { 'Authorization': 'Bearer ' + TOKEN } : {}; }
+
+function showLogin(msg) {
+  const o = document.getElementById('login-overlay');
+  o.style.display = 'flex';
+  document.getElementById('login-error').textContent = msg || '';
+}
+
+async function doLogin(ev) {
+  ev.preventDefault();
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  try {
+    const r = await fetch(API.replace('/api/production','') + '/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) { showLogin(data.error || 'Login failed'); return; }
+    sessionStorage.setItem('idd_token', data.token);
+    sessionStorage.setItem('idd_user',  data.user.username);
+    location.reload();  // restart with token — fetches + socket pick it up
+  } catch { showLogin('Cannot reach server'); }
+}
+
+function handleUnauthorized() {
+  sessionStorage.removeItem('idd_token');
+  TOKEN = '';
+  showLogin('Session expired — please log in again');
 }
 
 let allElements      = [];
@@ -914,7 +954,8 @@ document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('cli
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 async function tryFetch(path, fallback) {
   try {
-    const r = await fetch(API + path);
+    const r = await fetch(API + path, { headers: authHeaders() });
+    if (r.status === 401) { handleUnauthorized(); return fallback; }
     if (!r.ok) throw new Error(r.status);
     return await r.json();
   } catch(e) { console.error('Fetch error', path, e); return fallback; }
@@ -926,21 +967,25 @@ async function apiFetch(path, method, body) {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key':    IDD_TOKEN,
+        ...authHeaders(),
       },
       body: JSON.stringify(body)
     });
-    if (r.status === 401) { console.error('Auth failed — is the server running with the same API_KEY?'); return null; }
+    if (r.status === 401) { handleUnauthorized(); return null; }
     return await r.json();
   } catch(e) { console.error('API error', path, e); return null; }
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-loadDashboard();
-loadElements();
+// ─── Init — only after login ──────────────────────────────────────────────────
+if (TOKEN) {
+  loadDashboard();
+  loadElements();
+} else {
+  showLogin();
+}
 
-// ─── Real-time Socket.io ──────────────────────────────────────────────────────
-const socket = io(BASE, { transports: ['websocket','polling'], auth: { token: IDD_TOKEN } });
+// ─── Real-time Socket.io (connects only when logged in) ───────────────────────
+const socket = io(BASE, { transports: ['websocket','polling'], auth: { token: TOKEN }, autoConnect: !!TOKEN });
 
 // Live indicator
 const liveDot   = document.getElementById('live-dot');

@@ -15,11 +15,47 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
+import rateLimit from 'express-rate-limit';
+import { requireAuth, loginHandler, makeServer } from './auth.js';
 
 const app = express();
 const ALLOWED = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001').split(',');
 app.use(cors({ origin: (o, cb) => (!o || ALLOWED.includes(o)) ? cb(null, true) : cb(new Error('CORS blocked: ' + o)) }));
 app.use(express.json());
+
+// Standard security headers
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options',        'DENY');
+  res.setHeader('Referrer-Policy',        'strict-origin-when-cross-origin');
+  next();
+});
+
+// Login (rate-limited) — every other /api route requires the resulting token
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Too many login attempts — try again in 15 minutes' },
+});
+app.post('/api/login', loginLimiter, loginHandler);
+
+// Auth gate: all /api routes except health + login require a valid session token
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health' || req.path === '/login') return next();
+  requireAuth(req, res, next);
+});
+
+// Rate limit the token-generating + vendor-proxy endpoints (per security review)
+const proxyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Too many requests — slow down' },
+});
+app.use(['/api/powerbi-embed', '/api/powerbi-reports', '/api/rfis', '/api/defects', '/api/qaqc'], proxyLimiter);
 
 const PORT = process.env.PORT || 3001;
 
@@ -27,7 +63,7 @@ const PORT = process.env.PORT || 3001;
 async function fetchT(url, opts = {}, ms = 15000) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), ms);
-  try { return await fetchT(url, { ...opts, signal: ctl.signal }); }
+  try { return await fetch(url, { ...opts, signal: ctl.signal }); }
   finally { clearTimeout(t); }
 }
 
@@ -677,8 +713,11 @@ app.get('/api/idd/logistics', async (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🏗  Kay Lim Dashboard Backend — http://localhost:${PORT}`);
+const { server, tls } = makeServer(app);
+server.listen(PORT, () => {
+  console.log(`\n🏗  Kay Lim Dashboard Backend — ${tls ? 'https' : 'http'}://localhost:${PORT}`);
+  console.log(`   Auth         : per-user login at POST /api/login (manage users: node auth.js add-user <name> <password>)`);
+  console.log(`   TLS          : ${tls ? '✅ HTTPS enabled' : '⚠ HTTP — terminate TLS at a reverse proxy for non-local use'}`);
   console.log(`   ACC Project  : ${ACC_PROJECT}`);
   console.log(`   APS creds    : ${process.env.APS_CLIENT_ID  ? '✅ set' : '❌ missing — set APS_CLIENT_ID + APS_CLIENT_SECRET in .env'}`);
   console.log(`   Power BI     : ${process.env.PBI_TENANT_ID  ? '✅ set' : '⏳ set PBI_TENANT_ID / PBI_CLIENT_ID / PBI_CLIENT_SECRET / PBI_WORKSPACE_ID / PBI_REPORT_ID'}`);

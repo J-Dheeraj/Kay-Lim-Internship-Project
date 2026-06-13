@@ -744,13 +744,56 @@ tr:last-child td{border-bottom:none}
 </section>
 
 </main>
+
+<!-- Login overlay — backend API requires a per-user session token -->
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:1000;align-items:center;justify-content:center">
+  <form onsubmit="doLogin(event)" style="background:#fff;border-radius:12px;padding:2rem;width:320px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <h2 style="margin:0 0 .25rem;font-size:1.1rem">Kay Lim Construction Dashboard</h2>
+    <p style="margin:0 0 1.25rem;font-size:.82rem;color:#6b7280">Sign in to load live data</p>
+    <input id="login-user" placeholder="Username" autocomplete="username" required
+           style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.55rem .7rem;border:1px solid #d1d5db;border-radius:8px;font-size:.9rem">
+    <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password" required
+           style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.55rem .7rem;border:1px solid #d1d5db;border-radius:8px;font-size:.9rem">
+    <div id="login-error" style="color:#dc2626;font-size:.8rem;min-height:1.1rem;margin-bottom:.5rem"></div>
+    <button type="submit" style="width:100%;padding:.6rem;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:.92rem;cursor:pointer">Sign in</button>
+  </form>
+</div>
+
 <script>
 const BACKEND = localStorage.getItem('backend_url') ||
   (location.protocol.startsWith('http') ? `${location.protocol}//${location.hostname}:3001` : 'http://localhost:3001');
 /* HTML-escape — applied to all backend-supplied strings rendered via innerHTML */
 function esc(v){const d=document.createElement('div');d.textContent=String(v??'');return d.innerHTML;}
 const C=s=>getComputedStyle(document.documentElement).getPropertyValue(s).trim();
-async function tryFetch(p,fb){try{const r=await fetch(BACKEND+p);if(!r.ok)throw 0;return await r.json()}catch{return fb}}
+
+/* ── Auth — per-user session token from POST /api/login ── */
+let TOKEN=sessionStorage.getItem('klim_token')||'';
+function authHeaders(){return TOKEN?{Authorization:'Bearer '+TOKEN}:{}}
+function showLogin(msg){
+  const o=document.getElementById('login-overlay');
+  o.style.display='flex';
+  document.getElementById('login-error').textContent=msg||'';
+}
+async function doLogin(ev){
+  ev.preventDefault();
+  const username=document.getElementById('login-user').value.trim();
+  const password=document.getElementById('login-pass').value;
+  try{
+    const r=await fetch(BACKEND+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+    const data=await r.json();
+    if(!r.ok||!data.ok){showLogin(data.error||'Login failed');return}
+    sessionStorage.setItem('klim_token',data.token);
+    location.reload(); // restart with token — all fetches pick it up
+  }catch{showLogin('Cannot reach backend at '+BACKEND)}
+}
+let authPrompted=false;
+function onUnauthorized(){
+  sessionStorage.removeItem('klim_token');TOKEN='';
+  if(!authPrompted){authPrompted=true;showLogin('Session expired — please log in again')}
+}
+if(!TOKEN)showLogin();
+
+async function tryFetch(p,fb){try{const r=await fetch(BACKEND+p,{headers:authHeaders()});if(r.status===401){onUnauthorized();return fb}if(!r.ok)throw 0;return await r.json()}catch{return fb}}
 function setEl(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
 function mkChart(id,cfg){const c=document.getElementById(id);if(!c)return null;return new Chart(c,cfg)}
 
@@ -1037,7 +1080,7 @@ window.loadPbiReport=async function(reportId){
   container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.88rem">Loading report…</div>';
   const data=await tryFetch('/api/powerbi-embed?reportId='+reportId,null);
   if(!data||data.error){
-    container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--amber);font-size:.88rem">⚠ '+(data&&data.error?data.error:'Unable to load report. Check Power BI credentials in .env')+'</div>';
+    container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--amber);font-size:.88rem">⚠ '+esc(data&&data.error?data.error:'Unable to load report. Check Power BI credentials in .env')+'</div>';
     return;
   }
   if(data._source==='mock'||!data.embedToken){

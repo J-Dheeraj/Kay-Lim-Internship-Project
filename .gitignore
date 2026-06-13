@@ -3,3 +3,5 @@ node_modules/
 idd_data.json
 idd_data_backup_*.json
 *.log
+users.json
+.session_secret

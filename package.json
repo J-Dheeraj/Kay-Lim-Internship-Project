@@ -6,11 +6,15 @@
   "main": "acc_backend_server.js",
   "scripts": {
     "start": "node acc_backend_server.js",
-    "dev": "node --watch acc_backend_server.js"
+    "dev": "node --watch acc_backend_server.js",
+    "start:idd": "node idd_production_server.js",
+    "dev:idd": "node --watch idd_production_server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
-    "express": "^4.18.0"
+    "express": "^4.18.0",
+    "express-rate-limit": "^7.1.5",
+    "socket.io": "^4.7.5"
   }
 }

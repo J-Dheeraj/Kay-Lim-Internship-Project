@@ -14,33 +14,34 @@
  * Environment variables (optional):
  *   PORT           – listening port           (default: 3002)
  *   ALLOWED_ORIGIN – CORS allowed origin      (default: http://localhost:<PORT>)
- *   API_KEY        – shared secret for auth   (default: dev-only-key — CHANGE IN PRODUCTION)
+ *   ADMIN_PASSWORD – first-run admin password (see auth.js; random if unset)
+ *   SESSION_SECRET – token signing secret     (auto-generated if unset)
+ *   TLS_KEY_FILE / TLS_CERT_FILE – serve HTTPS directly (else use a reverse proxy)
+ *
+ * Auth: per-user login (POST /api/login) → signed 8h session token.
+ * Manage users:  node auth.js add-user <name> <password> [admin|user]
  *
  * ⚠ TODO before production:
- *   - Replace shared API_KEY with per-user JWT issued on login
  *   - Replace JSON file storage with a real database (SQLite → PostgreSQL)
- *   - Replace self-asserted `by` fields with identity from verified JWT claims
  */
 
 import express  from 'express';
-import { createServer }  from 'http';
 import { Server as SocketIO } from 'socket.io';
 import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
+import { requireAuth, requireAdmin, loginHandler, verifyToken, makeServer } from './auth.js';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || `http://localhost:${PORT}`;
-// WARNING: change this in production — use a long random secret in your .env
-const API_KEY        = process.env.API_KEY        || 'idd-dev-key-change-me';
 const DATA_FILE      = path.join(__dirname, 'idd_data.json');
 
 // ─── Express + Socket.io setup ───────────────────────────────────────────────
-const app        = express();
-const httpServer = createServer(app);
+const app = express();
+const { server: httpServer, tls } = makeServer(app);
 const io         = new SocketIO(httpServer, {
   cors: { origin: ALLOWED_ORIGIN, methods: ['GET','POST','PATCH','DELETE'] }
 });
@@ -52,7 +53,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin || ALLOWED_ORIGIN);
   }
   res.setHeader('Access-Control-Allow-Methods',  'GET,POST,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers',  'Content-Type, X-API-Key');
+  res.setHeader('Access-Control-Allow-Headers',  'Content-Type, Authorization');
   res.setHeader('X-Content-Type-Options',        'nosniff');
   res.setHeader('X-Frame-Options',               'DENY');
   res.setHeader('X-XSS-Protection',              '1; mode=block');
@@ -63,14 +64,6 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50kb' }));
 
-// ─── Auth middleware — required on all mutation (write) routes ────────────────
-function requireAuth(req, res, next) {
-  const token = req.headers['x-api-key'];
-  if (!token || token !== API_KEY)
-    return res.status(401).json({ ok:false, error:'Unauthorized — X-API-Key required' });
-  next();
-}
-
 // ─── Rate limiter — 60 mutations per IP per minute ───────────────────────────
 const mutationLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -80,18 +73,22 @@ const mutationLimiter = rateLimit({
   message: { ok:false, error:'Too many requests — slow down' },
 });
 
-// Serve the app HTML with API_KEY injected as a meta tag so the browser
-// can authenticate WebSocket + REST calls without hardcoding secrets in JS.
-app.get('/', (req, res) => {
-  let html = fs.readFileSync(path.join(__dirname, 'idd_production_app.html'), 'utf8');
-  html = html.replace('</head>', `  <meta name="idd-token" content="${API_KEY}">
-</head>`);
-  res.setHeader('Content-Type', 'text/html');
-  res.send(html);
+// ─── Login — strict rate limit to slow brute-force attempts ──────────────────
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok:false, error:'Too many login attempts — try again in 15 minutes' },
 });
-// Static assets — block data files & backups (would leak the full QC/NCR DB)
+app.post('/api/login', loginLimiter, loginHandler);
+
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'idd_production_app.html'));
+});
+// Static assets — block data files, secrets & backups (would leak the QC/NCR DB)
 app.use((req, res, next) => {
-  if (/\.(json|env)$/i.test(req.path)) return res.status(404).end();
+  if (/\.(json|env)$/i.test(req.path) || /session_secret/i.test(req.path)) return res.status(404).end();
   next();
 }, express.static(__dirname, { index: false }));
 // Serve the app HTML (with injected token) at its direct path too
@@ -112,9 +109,9 @@ function str(v, maxLen = 2000) {
 
 // ─── Socket.io auth middleware ───────────────────────────────────────────────
 io.use((socket, next) => {
-  const token = socket.handshake.auth?.token;
-  if (!token || token !== API_KEY)
-    return next(new Error('Unauthorized'));
+  const user = verifyToken(socket.handshake.auth?.token);
+  if (!user) return next(new Error('Unauthorized'));
+  socket.user = user;
   next();
 });
 
@@ -265,7 +262,7 @@ if (!db.meta) {
 }
 
 // ─── Dashboard endpoint ──────────────────────────────────────────────────────
-app.get('/api/production/dashboard', (_req, res) => {
+app.get('/api/production/dashboard', requireAuth, (_req, res) => {
   const els = db.elements;
   const total = els.length;
   const byStatus = {};
@@ -318,7 +315,7 @@ app.get('/api/production/dashboard', (_req, res) => {
 });
 
 // ─── Element list ─────────────────────────────────────────────────────────────
-app.get('/api/production/elements', (req, res) => {
+app.get('/api/production/elements', requireAuth, (req, res) => {
   const { status, block, type, q } = req.query;
   let els = db.elements;
   if (status) els = els.filter(e => e.status === status);
@@ -337,7 +334,7 @@ app.get('/api/production/elements', (req, res) => {
 });
 
 // ─── Element detail ───────────────────────────────────────────────────────────
-app.get('/api/production/elements/:id', (req, res) => {
+app.get('/api/production/elements/:id', requireAuth, (req, res) => {
   const el = db.elements.find(e => e.id === req.params.id);
   if (!el) return res.status(404).json({ error:'Not found' });
   res.json(el);
@@ -348,10 +345,10 @@ app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, a
   const el = db.elements.find(e => e.id === req.params.id);
   if (!el) return res.status(404).json({ error:'Not found' });
 
-  const { status, by } = req.body;
+  const { status } = req.body;
   if (!VALID_STATUSES.has(status))
     return res.status(400).json({ ok:false, error:'Invalid status value' });
-  const byStr = str(by, 100) || 'User';
+  const byStr = req.user.username;  // identity from verified token, not request body
 
   el.statusHistory.push({ from:el.status, to:status, by:byStr, at:new Date().toISOString() });
   el.status    = status;
@@ -369,9 +366,9 @@ app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter
   const el = db.elements.find(e => e.id === req.params.id);
   if (!el) return res.status(404).json({ error:'Not found' });
 
-  const { items, checkedBy } = req.body;
+  const { items } = req.body;
   if (!Array.isArray(items)) return res.status(400).json({ error:'items must be an array' });
-  const checkedByStr = str(checkedBy, 100) || 'Inspector';
+  const checkedByStr = req.user.username;  // identity from verified token
 
   items.forEach(upd => {
     if (!upd?.id) return;
@@ -416,7 +413,7 @@ app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, asyn
 
   const severity = VALID_SEVERITIES.has(req.body.severity) ? req.body.severity : 'minor';
   const location = str(req.body.location, 500) || '';
-  const raisedBy = str(req.body.raisedBy, 100) || 'User';
+  const raisedBy = req.user.username;  // identity from verified token
 
   // Atomic counter — no collision risk from concurrent submits
   db.meta.ncrCounter = (db.meta.ncrCounter || 0) + 1;
@@ -447,14 +444,14 @@ app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, async (re
   const ncr = db.ncrs.find(n => n.id === req.params.ncrId);
   if (!ncr) return res.status(404).json({ error:'NCR not found' });
 
-  const { status, correctiveAction, closedBy } = req.body;
+  const { status, correctiveAction } = req.body;
   if (status && !['open','in_progress','closed'].includes(status))
     return res.status(400).json({ ok:false, error:'Invalid NCR status' });
 
   if (status) ncr.status = status;
   if (correctiveAction !== undefined) ncr.correctiveAction = str(correctiveAction, 2000) || ncr.correctiveAction;
   if (status === 'closed') {
-    ncr.closedBy = str(closedBy, 100) || 'User';
+    ncr.closedBy = req.user.username;  // identity from verified token
     ncr.closedAt = new Date().toISOString();
   }
 
@@ -463,7 +460,7 @@ app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, async (re
     const elNcr = el.ncrs.find(n => n.id === ncr.id);
     if (elNcr) Object.assign(elNcr, ncr);
     if (status === 'closed' && el.ncrs.every(n => n.status === 'closed')) {
-      el.statusHistory.push({ from:el.status, to:'pending_qc', by:str(closedBy,100)||'System', at:new Date().toISOString() });
+      el.statusHistory.push({ from:el.status, to:'pending_qc', by:req.user.username, at:new Date().toISOString() });
       el.status = 'pending_qc';
     }
     el.updatedAt = new Date().toISOString();
@@ -478,15 +475,15 @@ app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, async (re
 });
 
 // ─── All NCRs ─────────────────────────────────────────────────────────────────
-app.get('/api/production/ncrs', (req, res) => {
+app.get('/api/production/ncrs', requireAuth, (req, res) => {
   const { status } = req.query;
   let ncrs = db.ncrs;
   if (status) ncrs = ncrs.filter(n => n.status === status);
   res.json(ncrs);
 });
 
-// ─── Reset to seed (dev utility) ─────────────────────────────────────────────
-app.post('/api/production/reset', requireAuth, mutationLimiter, async (_req, res) => {
+// ─── Reset to seed (dev utility — admin only) ────────────────────────────────
+app.post('/api/production/reset', requireAdmin, mutationLimiter, async (_req, res) => {
   // Back up current data before wiping
   const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
   if (fs.existsSync(DATA_FILE)) fs.copyFileSync(DATA_FILE, backup);
@@ -507,13 +504,15 @@ httpServer.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════════════════════════╗');
   console.log('║  IDD Digital Production Server  —  REAL-TIME  HDB BSS S77║');
   console.log('╚══════════════════════════════════════════════════════════╝');
-  console.log(`  REST API:  http://localhost:${PORT}/api/production/dashboard`);
-  console.log(`  WebSocket: ws://localhost:${PORT}   (Socket.io)`);
-  console.log(`  Frontend:  http://localhost:${PORT}/idd_production_app.html`);
+  const scheme = tls ? 'https' : 'http';
+  console.log(`  REST API:  ${scheme}://localhost:${PORT}/api/production/dashboard`);
+  console.log(`  WebSocket: ${tls ? 'wss' : 'ws'}://localhost:${PORT}   (Socket.io)`);
+  console.log(`  Frontend:  ${scheme}://localhost:${PORT}/`);
   console.log(`  Data:      ${DATA_FILE}`);
   console.log(`  Records:   ${db.elements.length} elements, ${db.ncrs.length} NCRs`);
   if (ALLOWED_ORIGIN !== `http://localhost:${PORT}`)
     console.log(`  CORS:      ${ALLOWED_ORIGIN}`);
-  console.log(`  Auth:      ${API_KEY === 'idd-dev-key-change-me' ? '⚠ dev key (set API_KEY in .env for production)' : '✓ API_KEY set'}`);
+  console.log(`  Auth:      per-user login (manage users: node auth.js add-user <name> <password>)`);
+  console.log(`  TLS:       ${tls ? '✓ HTTPS enabled' : '⚠ HTTP — terminate TLS at a reverse proxy for non-local use'}`);
   console.log('\n  Multi-tab: open in several tabs/devices to see real-time sync\n');
 });
