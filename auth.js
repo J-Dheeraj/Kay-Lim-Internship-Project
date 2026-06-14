@@ -85,10 +85,10 @@ export function verifyPassword(password, stored) {
 // ─── User store ───────────────────────────────────────────────────────────────
 function readUsers() {
   if (fs.existsSync(USERS_FILE)) return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  // Bootstrap: create the admin account on first run
+  // Bootstrap: create the head-of-IT account on first run (top of the hierarchy)
   const generated = !process.env.ADMIN_PASSWORD;
   const password  = process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
-  const users     = { admin: { passwordHash: hashPassword(password), role: 'admin' } };
+  const users     = { admin: { passwordHash: hashPassword(password), role: 'head_of_it' } };
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), { mode: 0o600 });
   if (generated) {
     console.log('\n  ╔════════════════════════════════════════════════════════╗');
@@ -160,6 +160,27 @@ export function authenticate(token) {
   return { username: u.username, role: rec.role || 'user' };
 }
 
+// ─── Roles (ascending privilege tiers) ────────────────────────────────────────
+// Higher rank ⇒ more access. Kay Lim's org positions map onto four capability
+// tiers. IT is the only full system admin; the management positions (Management,
+// GM, PD, PM) are full QC/NCR admins (incl. closing/approving NCRs) but not
+// system admins; QC inspectors can raise but not close NCRs (separation of
+// duties); HR and viewers are read-only.
+//   Tier 1 (read-only)        : viewer, hr
+//   Tier 2 (QC inspector)     : inspector            (+ legacy 'user')
+//   Tier 3 (QC/NCR manager)   : pm, pd, gm, management(+ legacy 'supervisor')
+//   Tier 4 (full system admin): head_of_it           (+ legacy 'admin')
+// NOTE: per-feature admin scoping (e.g. HR-only or project-only) is not yet
+// enforceable — only the QC/IDD feature exposes gated mutations today.
+export const ROLE_RANK = {
+  viewer: 1, hr: 1,
+  user: 2, inspector: 2,
+  supervisor: 3, pm: 3, pd: 3, gm: 3, management: 3,
+  head_of_it: 4, admin: 4,
+};
+export function rank(role) { return ROLE_RANK[role] || 0; }
+export const ROLES = ['viewer', 'hr', 'inspector', 'pm', 'pd', 'gm', 'management', 'head_of_it'];
+
 // ─── Express middleware ───────────────────────────────────────────────────────
 export function requireAuth(req, res, next) {
   const h    = req.headers.authorization || '';
@@ -169,13 +190,17 @@ export function requireAuth(req, res, next) {
   next();
 }
 
-export function requireAdmin(req, res, next) {
-  requireAuth(req, res, () => {
-    if (req.user.role !== 'admin')
-      return res.status(403).json({ ok: false, error: 'Forbidden — admin role required' });
+// Require the caller's role to be at least `minRole`.
+export function requireRole(minRole) {
+  return (req, res, next) => requireAuth(req, res, () => {
+    if (rank(req.user.role) < rank(minRole))
+      return res.status(403).json({ ok: false, error: `Forbidden — requires ${minRole} role or higher` });
     next();
   });
 }
+
+// Kept for backward compatibility: admin == head_of_it (top tier).
+export const requireAdmin = requireRole('head_of_it');
 
 // POST /api/login  { username, password } → { ok, token, user }
 export function loginHandler(req, res) {
@@ -213,8 +238,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const [, , cmd, name, pw, role] = process.argv;
   const users = readUsers();
   if (cmd === 'add-user' && name && pw) {
-    users[name] = { passwordHash: hashPassword(pw), role: role === 'admin' ? 'admin' : 'user' };
+    // Accept the named roles; 'admin' stays valid (== head_of_it). Default to
+    // least privilege (viewer) if an unknown/empty role is given.
+    const validRoles = [...ROLES, 'admin'];
+    const chosen = validRoles.includes(role) ? role : 'viewer';
+    users[name] = { passwordHash: hashPassword(pw), role: chosen };
     writeUsers(users);
+    if (!validRoles.includes(role) && role)
+      console.log(`Unknown role '${role}' — defaulting to 'viewer'. Valid: ${ROLES.join(', ')}.`);
     console.log(`User '${name}' saved (role: ${users[name].role}).`);
   } else if (cmd === 'remove-user' && name) {
     if (!users[name]) { console.log(`No such user '${name}'.`); process.exit(1); }
@@ -224,6 +255,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   } else if (cmd === 'list-users') {
     Object.entries(users).forEach(([n, u]) => console.log(`${n}  (${u.role || 'user'})`));
   } else {
-    console.log('Usage:\n  node auth.js add-user <username> <password> [admin|user]\n  node auth.js remove-user <username>\n  node auth.js list-users');
+    console.log(`Usage:\n  node auth.js add-user <username> <password> [${ROLES.join('|')}]\n  node auth.js remove-user <username>\n  node auth.js list-users`);
   }
 }

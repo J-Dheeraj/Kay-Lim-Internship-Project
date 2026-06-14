@@ -33,8 +33,17 @@ npm run start:idd           # serves the app + API on :3002
 ## Authentication
 - **Per-user login** — `POST /api/login` returns a signed session token (8h); the browser sends it as `Authorization: Bearer <token>`. No API key is ever exposed to the browser.
 - **Logout / revocation** — `POST /api/logout` revokes the token; deleting a user or changing their role takes effect on their next request.
-- **User management** — `node auth.js add-user <name> <password> [admin|user]`, `remove-user`, `list-users`. First run creates an `admin` account (password from `ADMIN_PASSWORD`, or printed once).
-- **Roles** — any logged-in user can perform QC/NCR mutations; database reset requires `admin`.
+- **User management** — `node auth.js add-user <name> <password> [viewer|hr|inspector|pm|pd|gm|management|head_of_it]`, `remove-user`, `list-users`. First run creates a `head_of_it` account (password from `ADMIN_PASSWORD`, or printed once).
+- **Roles (RBAC)** — four capability tiers, mapped to Kay Lim org positions. Reads are open to any logged-in user; mutations are gated:
+
+  | Tier | Roles | Can do |
+  |------|-------|--------|
+  | Full system admin | `head_of_it` (legacy `admin`) | Everything: DB reset, audit verification, all QC/NCR actions |
+  | QC/NCR manager | `management`, `gm`, `pd`, `pm` (legacy `supervisor`) | Change status, submit checklists, raise **and close/approve** NCRs |
+  | QC inspector | `inspector` (legacy `user`) | Change status, submit checklists, raise NCRs — **cannot close** (separation of duties) |
+  | Read-only | `viewer`, `hr` | View dashboards, elements, NCRs |
+
+  IT is the only full system admin. Per-feature admin scoping (e.g. HR-only or project-only) is not yet enforced — only the QC/IDD feature exposes gated mutations today.
 
 ## Security notes
 - Vendor API keys live server-side in `.env` only — never sent to the browser.

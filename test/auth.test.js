@@ -22,6 +22,12 @@ fs.writeFileSync(USERS_FILE, JSON.stringify({
   dan:   { passwordHash: 'x', role: 'user'  },
   eve:   { passwordHash: 'x', role: 'admin' },
   grace: { passwordHash: 'x', role: 'user'  },
+  vic:   { passwordHash: 'x', role: 'viewer' },
+  ines:  { passwordHash: 'x', role: 'inspector' },
+  sam:   { passwordHash: 'x', role: 'supervisor' },
+  hank:  { passwordHash: 'x', role: 'head_of_it' },
+  peggy: { passwordHash: 'x', role: 'pm' },         // org role → manager tier
+  holly: { passwordHash: 'x', role: 'hr' },         // org role → read-only
 }));
 process.env.USERS_FILE = USERS_FILE;
 process.on('exit', () => { try { fs.rmSync(USERS_FILE, { force: true }); } catch {} });
@@ -30,8 +36,19 @@ process.on('exit', () => { try { fs.rmSync(USERS_FILE, { force: true }); } catch
 // (static imports are hoisted and would run first).
 const {
   hashPassword, verifyPassword, signToken, verifyToken, requireAuth, requireAdmin,
-  revokeToken, authenticate,
+  revokeToken, authenticate, requireRole, rank,
 } = await import('../auth.js');
+
+// Express middleware harness.
+function run(mw, username) {
+  const res = { statusCode: 200, body: null };
+  res.status = c => { res.statusCode = c; return res; };
+  res.json   = b => { res.body = b; return res; };
+  let nexted = false;
+  const headers = username ? { authorization: 'Bearer ' + signToken(username, 'ignored') } : {};
+  mw({ headers }, res, () => { nexted = true; });
+  return { nexted, status: res.statusCode };
+}
 
 test('password hashing round-trips and rejects wrong passwords', () => {
   const stored = hashPassword('correct horse battery staple');
@@ -139,4 +156,44 @@ test('requireAdmin forbids non-admins and admits admins', () => {
   res = mkRes(); called = false;
   requireAdmin({ headers: { authorization: 'Bearer ' + signToken('eve', 'admin') } }, res, () => { called = true; });
   assert.equal(called, true);
+});
+
+test('role ranks order correctly, legacy roles mapped', () => {
+  assert.ok(rank('viewer') < rank('inspector'));
+  assert.ok(rank('inspector') < rank('supervisor'));
+  assert.ok(rank('supervisor') < rank('head_of_it'));
+  assert.equal(rank('admin'), rank('head_of_it'));  // legacy admin == top
+  assert.equal(rank('user'), rank('inspector'));     // legacy user == inspector level
+});
+
+test('requireRole enforces the minimum role (inspector gate)', () => {
+  const gate = requireRole('inspector');
+  assert.equal(run(gate, 'vic').status, 403);    // viewer  < inspector
+  assert.equal(run(gate, 'ines').nexted, true);  // inspector ok
+  assert.equal(run(gate, 'sam').nexted, true);   // supervisor ok (higher)
+  assert.equal(run(gate, 'hank').nexted, true);  // head_of_it ok
+  assert.equal(run(gate, null).status, 401);     // unauthenticated
+});
+
+test('separation of duties: inspector cannot close NCRs (supervisor gate)', () => {
+  const gate = requireRole('supervisor');
+  assert.equal(run(gate, 'ines').status, 403);   // inspector blocked from closing
+  assert.equal(run(gate, 'sam').nexted, true);   // supervisor can close
+  assert.equal(run(gate, 'hank').nexted, true);  // head_of_it can close
+});
+
+test('only head_of_it passes the top gate (reset/audit)', () => {
+  const gate = requireRole('head_of_it');
+  assert.equal(run(gate, 'sam').status, 403);    // supervisor blocked
+  assert.equal(run(gate, 'hank').nexted, true);  // head_of_it ok
+  assert.equal(run(gate, 'eve').nexted, true);   // legacy admin == head_of_it
+});
+
+test('org positions map to the right tiers', () => {
+  // PM (manager tier) can close NCRs; HR (read-only) cannot mutate; neither is system admin.
+  assert.equal(run(requireRole('supervisor'), 'peggy').nexted, true);  // PM can close NCRs
+  assert.equal(run(requireRole('supervisor'), 'holly').status, 403);   // HR cannot close
+  assert.equal(run(requireRole('inspector'),  'holly').status, 403);   // HR cannot do QC actions
+  assert.equal(run(requireRole('inspector'),  'peggy').nexted, true);  // PM ≥ inspector
+  assert.equal(run(requireRole('head_of_it'), 'peggy').status, 403);   // PM is not system admin
 });

@@ -33,7 +33,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { createStore } from './idd_store.js';
-import { requireAuth, requireAdmin, loginHandler, logoutHandler, authenticate, makeServer } from './auth.js';
+import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, makeServer } from './auth.js';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
@@ -303,7 +303,7 @@ app.get('/api/production/elements/:id', requireAuth, (req, res) => {
 });
 
 // ─── Update element status ────────────────────────────────────────────────────
-app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, (req, res) => {
+app.patch('/api/production/elements/:id/status', requireRole('inspector'), mutationLimiter, (req, res) => {
   const { status } = req.body;
   if (!VALID_STATUSES.has(status))
     return res.status(400).json({ ok:false, error:'Invalid status value' });
@@ -325,7 +325,7 @@ app.patch('/api/production/elements/:id/status', requireAuth, mutationLimiter, (
 });
 
 // ─── Submit / update inspection checklist ────────────────────────────────────
-app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter, (req, res) => {
+app.patch('/api/production/elements/:id/checklist', requireRole('inspector'), mutationLimiter, (req, res) => {
   const { items } = req.body;
   if (!Array.isArray(items)) return res.status(400).json({ error:'items must be an array' });
   const checkedByStr = req.user.username;  // identity from verified token
@@ -366,7 +366,7 @@ app.patch('/api/production/elements/:id/checklist', requireAuth, mutationLimiter
 });
 
 // ─── Raise NCR ────────────────────────────────────────────────────────────────
-app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, (req, res) => {
+app.post('/api/production/elements/:id/ncrs', requireRole('inspector'), mutationLimiter, (req, res) => {
   const description = str(req.body.description, 2000);
   if (!description)
     return res.status(400).json({ ok:false, error:'description is required (max 2000 chars)' });
@@ -401,7 +401,7 @@ app.post('/api/production/elements/:id/ncrs', requireAuth, mutationLimiter, (req
 });
 
 // ─── Close / update NCR ───────────────────────────────────────────────────────
-app.patch('/api/production/ncrs/:ncrId', requireAuth, mutationLimiter, (req, res) => {
+app.patch('/api/production/ncrs/:ncrId', requireRole('supervisor'), mutationLimiter, (req, res) => {
   const { status, correctiveAction } = req.body;
   if (status && !['open','in_progress','closed'].includes(status))
     return res.status(400).json({ ok:false, error:'Invalid NCR status' });
