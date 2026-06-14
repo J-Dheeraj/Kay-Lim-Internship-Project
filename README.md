@@ -43,7 +43,7 @@ npm run start:idd           # serves the app + API on :3002
   | QC inspector | `inspector` (legacy `user`) | Change status, submit checklists, raise NCRs — **cannot close** (separation of duties) |
   | Read-only | `viewer`, `hr` | View dashboards, elements, NCRs |
 
-  IT is the only full system admin. Per-feature admin scoping (e.g. HR-only or project-only) is not yet enforced — only the QC/IDD feature exposes gated mutations today.
+  IT is the only full system admin. **Feature-scoped admin** sits alongside the QC tiers: `hr` (and `head_of_it`) can manage the **manpower** feature (`PUT /api/manpower`) even though HR is QC read-only. Other features (projects, QSE, etc.) can be scoped to roles the same way as they gain admin actions.
 
 ## Security notes
 - Vendor API keys live server-side in `.env` only — never sent to the browser.

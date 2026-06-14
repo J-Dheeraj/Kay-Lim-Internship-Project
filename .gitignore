@@ -10,3 +10,6 @@ users.json
 idd.db
 idd.db-wal
 idd.db-shm
+acc.db
+acc.db-wal
+acc.db-shm

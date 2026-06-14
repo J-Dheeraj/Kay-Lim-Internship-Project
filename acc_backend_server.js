@@ -16,8 +16,12 @@ import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import rateLimit from 'express-rate-limit';
-import { requireAuth, loginHandler, logoutHandler, makeServer } from './auth.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import Database from 'better-sqlite3';
+import { requireAuth, loginHandler, logoutHandler, requireFeatureAdmin, makeServer } from './auth.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const ALLOWED = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001').split(',');
 app.use(cors({ origin: (o, cb) => (!o || ALLOWED.includes(o)) ? cb(null, true) : cb(new Error('CORS blocked: ' + o)) }));
@@ -343,22 +347,45 @@ app.get('/api/progress', (_req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ACC — Manpower / Daily Log
-// ACC has a Daily Log (field reports) tool — no public REST API as of Jun 2026.
-// Alternatives: IDD Platform UC10 manpower data, PayAdvisorMobile® HRMS (CAPPS).
+// Manpower — HR-managed, persisted (SQLite). Read by any authenticated user;
+// only HR (and head_of_it) may update it. This is real managed data, not mock.
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/manpower', (_req, res) => {
-  res.json(mock({
-    today: 148, target: 155, utilisation: 95.5,
-    trades: [
-      { trade:'Concretor',  count:22 },{ trade:'Carpenter',  count:18 },
-      { trade:'Plasterer',  count:18 },{ trade:'Electrician',count:14 },
-      { trade:'Plumber',    count:12 },{ trade:'Tiler',      count:10 },
-      { trade:'Others',     count:54 }
-    ]
-    // TODO: Integrate with PayAdvisorMobile® HRMS (CAPPS, same vendor as Insight QSE)
-    // or with the IDD Platform (BCA) UC10 manpower tracking feed
-  }));
+const mpDb = new Database(path.join(__dirname, 'acc.db'));
+mpDb.pragma('journal_mode = WAL');
+mpDb.exec('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+const MANPOWER_DEFAULT = {
+  today: 148, target: 155, utilisation: 95.5,
+  trades: [
+    { trade:'Concretor', count:22 }, { trade:'Carpenter', count:18 },
+    { trade:'Plasterer', count:18 }, { trade:'Electrician', count:14 },
+    { trade:'Plumber', count:12 }, { trade:'Tiler', count:10 }, { trade:'Others', count:54 },
+  ],
+};
+const _mpGet = mpDb.prepare("SELECT value FROM kv WHERE key = 'manpower'");
+const _mpPut = mpDb.prepare("INSERT INTO kv (key, value) VALUES ('manpower', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+function getManpower() {
+  const r = _mpGet.get();
+  if (r) return JSON.parse(r.value);
+  _mpPut.run(JSON.stringify(MANPOWER_DEFAULT));
+  return MANPOWER_DEFAULT;
+}
+
+app.get('/api/manpower', (_req, res) => res.json({ ...getManpower(), _source: 'managed' }));
+
+app.put('/api/manpower', requireFeatureAdmin('manpower'), (req, res) => {
+  const cur = getManpower();
+  const b = req.body || {};
+  const next = { ...cur };
+  if (Number.isFinite(b.today))  next.today  = b.today;
+  if (Number.isFinite(b.target)) next.target = b.target;
+  if (Array.isArray(b.trades)) {
+    next.trades = b.trades
+      .filter(t => t && typeof t.trade === 'string' && Number.isFinite(t.count))
+      .map(t => ({ trade: t.trade.slice(0, 50), count: t.count }));
+  }
+  next.utilisation = next.target ? Math.round((next.today / next.target) * 1000) / 10 : 0;
+  _mpPut.run(JSON.stringify(next));
+  res.json({ ok: true, manpower: { ...next, _source: 'managed' } });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

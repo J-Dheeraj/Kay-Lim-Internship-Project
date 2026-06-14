@@ -36,7 +36,7 @@ process.on('exit', () => { try { fs.rmSync(USERS_FILE, { force: true }); } catch
 // (static imports are hoisted and would run first).
 const {
   hashPassword, verifyPassword, signToken, verifyToken, requireAuth, requireAdmin,
-  revokeToken, authenticate, requireRole, rank,
+  revokeToken, authenticate, requireRole, rank, requireFeatureAdmin,
 } = await import('../auth.js');
 
 // Express middleware harness.
@@ -187,6 +187,16 @@ test('only head_of_it passes the top gate (reset/audit)', () => {
   assert.equal(run(gate, 'sam').status, 403);    // supervisor blocked
   assert.equal(run(gate, 'hank').nexted, true);  // head_of_it ok
   assert.equal(run(gate, 'eve').nexted, true);   // legacy admin == head_of_it
+});
+
+test('feature-scoped admin: HR manages manpower, QC roles do not', () => {
+  const gate = requireFeatureAdmin('manpower');
+  assert.equal(run(gate, 'holly').nexted, true);   // HR can manage manpower
+  assert.equal(run(gate, 'hank').nexted, true);     // head_of_it always can
+  assert.equal(run(gate, 'peggy').status, 403);     // PM (manager) cannot — wrong feature
+  assert.equal(run(gate, 'ines').status, 403);      // inspector cannot
+  assert.equal(run(gate, 'vic').status, 403);       // viewer cannot
+  assert.equal(run(gate, null).status, 401);        // unauthenticated
 });
 
 test('org positions map to the right tiers', () => {

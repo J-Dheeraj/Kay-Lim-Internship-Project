@@ -170,8 +170,9 @@ export function authenticate(token) {
 //   Tier 2 (QC inspector)     : inspector            (+ legacy 'user')
 //   Tier 3 (QC/NCR manager)   : pm, pd, gm, management(+ legacy 'supervisor')
 //   Tier 4 (full system admin): head_of_it           (+ legacy 'admin')
-// NOTE: per-feature admin scoping (e.g. HR-only or project-only) is not yet
-// enforceable — only the QC/IDD feature exposes gated mutations today.
+// Feature-scoped admin (see FEATURE_ADMINS / requireFeatureAdmin) sits alongside
+// these tiers: e.g. HR administers the manpower feature even though HR is QC
+// read-only. More features can be scoped to roles as they gain admin actions.
 export const ROLE_RANK = {
   viewer: 1, hr: 1,
   user: 2, inspector: 2,
@@ -201,6 +202,21 @@ export function requireRole(minRole) {
 
 // Kept for backward compatibility: admin == head_of_it (top tier).
 export const requireAdmin = requireRole('head_of_it');
+
+// ─── Feature-scoped admin ─────────────────────────────────────────────────────
+// A feature is administered by specific role(s) regardless of QC tier — e.g. HR
+// manages manpower even though HR is read-only for QC. head_of_it always passes.
+export const FEATURE_ADMINS = {
+  manpower: ['hr'],
+};
+export function requireFeatureAdmin(feature) {
+  return (req, res, next) => requireAuth(req, res, () => {
+    const allowed = FEATURE_ADMINS[feature] || [];
+    if (req.user.role === 'head_of_it' || req.user.role === 'admin' || allowed.includes(req.user.role))
+      return next();
+    return res.status(403).json({ ok: false, error: `Forbidden — ${feature} admin role required` });
+  });
+}
 
 // POST /api/login  { username, password } → { ok, token, user }
 export function loginHandler(req, res) {
