@@ -4,6 +4,21 @@
 
 Two prototypes built during a 2-week IT internship at Kay Lim Construction (Singapore), grounded in the HDB BSS S77 §77.2 Integrated Digital Delivery (IDD) requirements.
 
+## Project structure
+
+| File | What it is |
+|------|------------|
+| `acc_backend_server.js` | **Command Centre backend** (Express, :3001). Proxies Autodesk ACC / Power BI / QSE / UniCon (credentials stay server-side); serves the Command Centre page; HR-managed manpower (SQLite). |
+| `construction_dashboard.html` | **Command Centre** single-page dashboard (served by the ACC backend). |
+| `idd_production_server.js` | **IDD Production backend** (Express + Socket.io, :3002). Element/checklist/NCR APIs, real-time sync, site scoping, audit. |
+| `idd_production_app.html` | **IDD Production** single-page app (served by the IDD backend). |
+| `idd_store.js` | IDD **data layer** — relational SQLite store (elements, NCRs, meta, audit) with row-level transactions and the hash-chained audit. |
+| `auth.js` | **Authentication & access control** — login, signed tokens, revocation, RBAC tiers, feature-scoped admin, site scoping, user-management CLI. |
+| `test/` | Automated tests (`npm test`, run by CI on every push). |
+| `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.env.deploy.example` | **Deployment** — containers + Caddy reverse proxy with automatic HTTPS. |
+| `.github/workflows/ci.yml` | GitHub Actions CI (install, syntax, tests). |
+| `README.md` · `DEPLOY.md` · `HANDOVER.md` | This file · deployment/operations runbook (incl. Google Cloud steps) · handover orientation. |
+
 ## 1. Construction Command Centre 
 A single dashboard aggregating four platforms Kay Lim already uses:
 - **Autodesk Construction Cloud (ACC)** — Issues/RFIs, defects, quality checklists (live via APS API)
