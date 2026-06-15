@@ -19,7 +19,9 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
-import { requireAuth, loginHandler, logoutHandler, requireFeatureAdmin, makeServer } from './auth.js';
+import { requireAuth, loginHandler, logoutHandler, requireFeatureAdmin, assertSecureConfig, makeServer } from './auth.js';
+
+assertSecureConfig();   // refuse to boot with example/placeholder secrets
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();

@@ -13,3 +13,4 @@ idd.db-shm
 acc.db
 acc.db-wal
 acc.db-shm
+ver.sh

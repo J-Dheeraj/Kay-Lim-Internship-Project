@@ -27,3 +27,5 @@ jobs:
           node --check idd_production_server.js
           node --check acc_backend_server.js
       - run: npm test
+      - name: Validate Docker Compose config
+        run: SESSION_SECRET=ci ADMIN_PASSWORD=ci DOMAIN=example.com docker compose config -q

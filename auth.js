@@ -41,16 +41,42 @@ function loadSecret() {
 }
 const SECRET = loadSecret();
 
-// ─── Token revocation (file-backed denylist of jti → expiry) ──────────────────
-// Shared on disk so both servers honour the same revocations and they survive
-// a restart. Re-read when the file changes; expired entries are pruned on write.
-let _revokedCache = { mtime: 0, set: new Map() };
+// ─── Config safety: refuse to start with example/placeholder secrets ──────────
+const PLACEHOLDER_SECRETS = new Set([
+  'replace_with_a_long_random_hex_string', 'choose_a_strong_admin_password',
+  'changeme-admin', 'changeme', 'change_me', 'password', 'admin',
+]);
+export function assertSecureConfig() {
+  const bad = [];
+  const ss = process.env.SESSION_SECRET, ap = process.env.ADMIN_PASSWORD;
+  if (ss && PLACEHOLDER_SECRETS.has(ss))               bad.push('SESSION_SECRET is the example placeholder');
+  if (ss && ss.length < 32)                            bad.push('SESSION_SECRET is shorter than 32 chars');
+  if (ap && PLACEHOLDER_SECRETS.has(ap))               bad.push('ADMIN_PASSWORD is the example placeholder');
+  if (bad.length) {
+    console.error(`\n  ✖ Refusing to start — insecure configuration:\n    - ${bad.join('\n    - ')}` +
+      `\n    Set strong values in .env (e.g. SESSION_SECRET="$(openssl rand -hex 32)").\n`);
+    process.exit(1);
+  }
+}
+
+// ─── Token revocation (append-only denylist of jti → expiry) ──────────────────
+// Shared on disk so both servers honour the same revocations and they survive a
+// restart. A revoke is a single atomic APPEND (one JSON line) — never a
+// read-modify-write — so two services revoking concurrently cannot overwrite
+// each other and "un-revoke" a token. Expired entries are filtered in memory on
+// read; the log is only ever appended to (compact offline if it grows large).
+let _revokedCache = { mtime: 0, size: 0, set: new Map() };
 function loadRevoked() {
   try {
     const stat = fs.statSync(REVOKED_FILE);
-    if (stat.mtimeMs !== _revokedCache.mtime) {
-      const obj = JSON.parse(fs.readFileSync(REVOKED_FILE, 'utf8'));
-      _revokedCache = { mtime: stat.mtimeMs, set: new Map(Object.entries(obj)) };
+    if (stat.mtimeMs !== _revokedCache.mtime || stat.size !== _revokedCache.size) {
+      const set = new Map();
+      const now = Date.now();
+      for (const line of fs.readFileSync(REVOKED_FILE, 'utf8').split('\n')) {
+        if (!line) continue;
+        try { const { jti, exp } = JSON.parse(line); if (typeof exp === 'number' && exp > now) set.set(jti, exp); } catch {}
+      }
+      _revokedCache = { mtime: stat.mtimeMs, size: stat.size, set };
     }
   } catch { /* no file yet → nothing revoked */ }
   return _revokedCache.set;
@@ -61,11 +87,7 @@ function isRevoked(jti) {
 export function revokeToken(token) {
   const data = decodeToken(token);
   if (!data?.jti) return false;
-  const map = new Map(loadRevoked());
-  map.set(data.jti, data.exp);
-  const now = Date.now();
-  for (const [j, exp] of map) if (typeof exp === 'number' && exp < now) map.delete(j); // prune expired
-  fs.writeFileSync(REVOKED_FILE, JSON.stringify(Object.fromEntries(map)), { mode: 0o600 });
+  fs.appendFileSync(REVOKED_FILE, JSON.stringify({ jti: data.jti, exp: data.exp }) + '\n', { mode: 0o600 });
   _revokedCache.mtime = 0; // force reload next check
   return true;
 }

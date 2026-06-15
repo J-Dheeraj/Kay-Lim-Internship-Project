@@ -12,10 +12,20 @@
 # Copy .env.deploy.example -> .env, fill it in, point DNS at the host, then:
 #   docker compose up -d --build
 
+# Fixed project name so the named volumes are predictable (klim_state, …) —
+# the backup/restore runbook in DEPLOY.md refers to `klim_state`.
+name: klim
+
 services:
   acc:
     build: .
     command: node acc_backend_server.js
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       PORT: 3001
       DATA_DIR: /data
@@ -45,6 +55,12 @@ services:
   idd:
     build: .
     command: node idd_production_server.js
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       PORT: 3002
       DATA_DIR: /data
@@ -56,7 +72,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2
+    image: caddy:2.8.4
     ports:
       - "80:80"
       - "443:443"

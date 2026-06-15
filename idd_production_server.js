@@ -33,7 +33,9 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { createStore } from './idd_store.js';
-import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, seesAllSites, makeServer } from './auth.js';
+import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, seesAllSites, assertSecureConfig, makeServer } from './auth.js';
+
+assertSecureConfig();   // refuse to boot with example/placeholder secrets
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
@@ -82,6 +84,7 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok:false, error:'Too many login attempts — try again in 15 minutes' },
 });
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 app.post('/api/login', loginLimiter, loginHandler);
 app.post('/api/logout', requireAuth, logoutHandler);
 
@@ -117,15 +120,27 @@ io.use((socket, next) => {
   next();
 });
 
-// ─── Socket.io connection tracking ───────────────────────────────────────────
+// ─── Socket.io connection tracking + site rooms ──────────────────────────────
+// Each socket joins exactly the rooms it is allowed to hear: HQ roles join the
+// 'hq' room (they see all sites); everyone else joins only their own site room.
+// Site-bearing events are emitted to the element's site room + 'hq', so a user
+// at another site never receives another site's IDs, statuses, or actor names.
 io.on('connection', socket => {
-  console.log(`  [WS] Client connected   · ${socket.id} · total: ${io.engine.clientsCount}`);
+  const u = socket.user;
+  if (seesAllSites(u.role)) socket.join('hq');
+  else if (u.site)          socket.join(`site:${u.site}`);
+  console.log(`  [WS] Client connected   · ${socket.id} · ${u.username} · ${seesAllSites(u.role) ? 'hq' : 'site:' + (u.site || 'none')} · total: ${io.engine.clientsCount}`);
   socket.on('disconnect', () =>
     console.log(`  [WS] Client disconnected · ${socket.id} · total: ${io.engine.clientsCount}`)
   );
 });
 
+// Global broadcast — only for no-data signals (e.g. a refresh ping).
 function broadcast(event, payload) { io.emit(event, payload); }
+// Site-scoped broadcast — to the site's room and HQ only.
+function broadcastSite(site, event, payload) {
+  io.to(`site:${site}`).to('hq').emit(event, payload);
+}
 
 // ─── Relational store (better-sqlite3, WAL — see idd_store.js) ────────────────
 const store = createStore(DB_FILE);
@@ -353,8 +368,8 @@ app.patch('/api/production/elements/:id/status', requireRole('inspector'), mutat
   }, auditMeta(req));
   if (el === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
 
-  broadcast('element:updated', { id:el.id, status:el.status, by:byStr, updatedAt:el.updatedAt });
-  broadcast('dashboard:refresh', {});
+  broadcastSite(el.site, 'element:updated', { id:el.id, status:el.status, by:byStr, updatedAt:el.updatedAt });
+  broadcastSite(el.site, 'dashboard:refresh', {});
   res.json({ ok:true, element:el });
 });
 
@@ -392,12 +407,12 @@ app.patch('/api/production/elements/:id/checklist', requireRole('inspector'), mu
   }, auditMeta(req));
   if (el === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
 
-  broadcast('element:updated', {
+  broadcastSite(el.site, 'element:updated', {
     id:el.id, status:el.status, by:checkedByStr,
     checklistPct: Math.round(el.checklist.filter(i => i.result !== null).length / el.checklist.length * 100),
     updatedAt: el.updatedAt,
   });
-  broadcast('dashboard:refresh', {});
+  broadcastSite(el.site, 'dashboard:refresh', {});
   res.json({ ok:true, element:el });
 });
 
@@ -432,9 +447,9 @@ app.post('/api/production/elements/:id/ncrs', requireRole('inspector'), mutation
   if (out === store.NOT_FOUND) return res.status(404).json({ error:'Not found' });
   const { el, ncr } = out;
 
-  broadcast('ncr:raised',      { ncrNo:ncr.ncrNo, elementId:el.id, severity:ncr.severity, raisedBy:ncr.raisedBy });
-  broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
-  broadcast('dashboard:refresh', {});
+  broadcastSite(el.site, 'ncr:raised',      { ncrNo:ncr.ncrNo, elementId:el.id, severity:ncr.severity, raisedBy:ncr.raisedBy });
+  broadcastSite(el.site, 'element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
+  broadcastSite(el.site, 'dashboard:refresh', {});
   res.status(201).json({ ok:true, ncr });
 });
 
@@ -464,9 +479,9 @@ app.patch('/api/production/ncrs/:ncrId', requireRole('supervisor'), mutationLimi
   if (out === store.NOT_FOUND) return res.status(404).json({ error:'NCR not found' });
   const { el, ncr } = out;
 
-  broadcast('ncr:updated',     { id:ncr.id, ncrNo:ncr.ncrNo, status:ncr.status, elementId:ncr.elementId });
-  broadcast('element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
-  broadcast('dashboard:refresh', {});
+  broadcastSite(el.site, 'ncr:updated',     { id:ncr.id, ncrNo:ncr.ncrNo, status:ncr.status, elementId:ncr.elementId });
+  broadcastSite(el.site, 'element:updated', { id:el.id, status:el.status, updatedAt:el.updatedAt });
+  broadcastSite(el.site, 'dashboard:refresh', {});
   res.json({ ok:true, ncr });
 });
 
