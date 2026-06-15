@@ -161,7 +161,7 @@ function makeChecklist() {
   }));
 }
 
-function seedDB() {
+function seedDB(auditEntry) {
   const now = new Date();
   const elements = [];
   let seq = 1;
@@ -236,7 +236,7 @@ function seedDB() {
   // Stable weekly planned values — seeded once, never jitter on dashboard refresh
   const weeklyPlanned = Array.from({ length:6 }, () => 8 + Math.floor(Math.random() * 4));
 
-  store.seed(elements, weeklyPlanned);
+  store.seed(elements, weeklyPlanned, auditEntry);
   console.log(`  Seeded ${elements.length} elements, ${ncrCount} NCRs`);
 }
 
@@ -440,8 +440,8 @@ app.post('/api/production/reset', requireAdmin, mutationLimiter, (req, res) => {
   // Back up current data (exported from SQLite) before wiping
   const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
   fs.writeFileSync(backup, JSON.stringify(store.exportAll(), null, 2));
-  seedDB();
-  store.audit({ ...auditMeta(req), action: 'db.reset', details: { backup: path.basename(backup) } });
+  // Reset and its audit record commit in one transaction (see store.seed).
+  seedDB({ ...auditMeta(req), action: 'db.reset', details: { backup: path.basename(backup) } });
   broadcast('dashboard:refresh', {});
   res.json({ ok:true, message:'Database reset to seed data', backup: path.basename(backup) });
 });

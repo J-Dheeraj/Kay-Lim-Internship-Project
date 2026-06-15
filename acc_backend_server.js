@@ -97,6 +97,7 @@ async function oauthToken(cache, url, params, name) {
 
 const _apsCache = { token: null, expiry: 0 };
 
+const apsConfigured = () => !!(process.env.APS_CLIENT_ID && process.env.APS_CLIENT_SECRET);
 async function getApsToken() {
   const id  = process.env.APS_CLIENT_ID;
   const sec = process.env.APS_CLIENT_SECRET;
@@ -204,8 +205,8 @@ app.get('/api/integrations/status', (_req, res) => {
 // Filters: filter[status], filter[issueTypeId], filter[issueSubtypeId],
 //          filter[assignedTo], filter[dueDate], filter[search], limit, offset
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/rfis', async (req, res) => {
-  try {
+app.get('/api/rfis', (_req, res) => liveOrMock(res, 'rfis', apsConfigured(),
+  async () => {
     const token = await getApsToken();
     const url   = `${APS_BASE}/construction/issues/v1/projects/${ACC_PROJECT}/issues?limit=100&sortBy=-createdAt`;
     const r     = await fetchT(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -221,12 +222,10 @@ app.get('/api/rfis', async (req, res) => {
       dueDate:     i.dueDate ? i.dueDate.split('T')[0] : '—',
       agedays:     i.createdAt ? Math.floor((Date.now() - new Date(i.createdAt)) / 86400000) : 0,
       location:    i.locationDescription || '—',
-      source:      'live'
     }));
-    res.json({ results, pagination: data.pagination });
-  } catch (e) {
-    console.warn('[/api/rfis] falling back to mock:', e.message);
-    res.json(mock({
+    return { results, pagination: data.pagination };
+  },
+  {
       results: [
         { id:'RFI-001', subject:'Column grid offset @ L3 Structural', discipline:'Structural', assignedTo:'Tan Wei Ming', status:'open',    dueDate:'2026-06-15', agedays:8  },
         { id:'RFI-002', subject:'M&E duct routing conflict — B1 carpark', discipline:'M&E',       assignedTo:'Lim Ah Kow',   status:'open',    dueDate:'2026-06-12', agedays:5  },
@@ -237,17 +236,15 @@ app.get('/api/rfis', async (req, res) => {
         { id:'RFI-007', subject:'Roof waterproofing membrane spec',     discipline:'Architectural', assignedTo:'Tan Wei Ming',status:'open',  dueDate:'2026-06-20', agedays:1  },
         { id:'RFI-008', subject:'Generator room ventilation top-up',    discipline:'M&E',         assignedTo:'Lim Ah Kow', status:'overdue', dueDate:'2026-06-03', agedays:28 },
       ]
-    }, e.message));
-  }
-});
+  }));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ACC — Defects (same issues endpoint, filtered by category)
 // In ACC, defects are Issues with a specific issueTypeId — query without filter
 // and let the dashboard filter client-side, or pass filter[issueTypeId]=<defect-type-id>
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/defects', async (req, res) => {
-  try {
+app.get('/api/defects', (_req, res) => liveOrMock(res, 'defects', apsConfigured(),
+  async () => {
     const token = await getApsToken();
     // Fetch open issues — the dashboard treats those with severity tags as defects
     const url   = `${APS_BASE}/construction/issues/v1/projects/${ACC_PROJECT}/issues?limit=50&filter[status]=open`;
@@ -260,12 +257,10 @@ app.get('/api/defects', async (req, res) => {
       status:   i.status,
       severity: i.priority || 'minor',   // ACC uses priority: 1=critical 2=major 3=minor
       location: i.locationDescription || '—',
-      source:   'live'
     }));
-    res.json({ results });
-  } catch (e) {
-    console.warn('[/api/defects] falling back to mock:', e.message);
-    res.json(mock({
+    return { results };
+  },
+  {
       results: [
         { id:'DEF-001', title:'Hollow tile @ L5 toilet',        status:'open',   severity:'major',    location:'L5 Unit 5A' },
         { id:'DEF-002', title:'Hairline crack wall finishes L6', status:'open',   severity:'minor',    location:'L6 Corridor' },
@@ -274,17 +269,15 @@ app.get('/api/defects', async (req, res) => {
         { id:'DEF-005', title:'Misaligned door frame L7-02',     status:'open',   severity:'minor',    location:'L7 Unit 7-02' },
         { id:'DEF-006', title:'Defective ACMV grille L4',        status:'closed', severity:'minor',    location:'L4 Corridor' },
       ]
-    }, e.message));
-  }
-});
+  }));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ACC — Quality Checklists
 // GET /quality/v1/projects/{projectId}/checklists
 // Docs: https://aps.autodesk.com/en/docs/acc/v1/reference/http/quality-checklistInstances-GET/
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/qaqc', async (req, res) => {
-  try {
+app.get('/api/qaqc', (_req, res) => liveOrMock(res, 'qaqc', apsConfigured(),
+  async () => {
     const token = await getApsToken();
     const url   = `${APS_BASE}/quality/v1/projects/${ACC_PROJECT}/checklistInstances?limit=50`;
     const r     = await fetchT(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -301,12 +294,10 @@ app.get('/api/qaqc', async (req, res) => {
       location:   c.locationDescription || '—',
       dueDate:    c.dueDate ? c.dueDate.split('T')[0] : '—',
       assignedTo: c.assignedTo || '—',
-      source:     'live'
     }));
-    res.json({ results });
-  } catch (e) {
-    console.warn('[/api/qaqc] falling back to mock:', e.message);
-    res.json(mock({
+    return { results };
+  },
+  {
       results: [
         { id:'CL-001', name:'Pre-Pour Checklist L5 Slab',   type:'Structural', status:'completed', passRate:95, location:'L5', dueDate:'2026-06-08', assignedTo:'Ahmad Fauzi' },
         { id:'CL-002', name:'M&E Rough-In 1st Fix L4',       type:'M&E',        status:'active',    passRate:80, location:'L4', dueDate:'2026-06-14', assignedTo:'Lim Ah Kow' },
@@ -314,9 +305,7 @@ app.get('/api/qaqc', async (req, res) => {
         { id:'CL-004', name:'Pre-Handover Inspection Unit 3A',type:'Pre-HO',     status:'overdue',   passRate:75, location:'L3', dueDate:'2026-06-05', assignedTo:'Tan Wei Ming' },
         { id:'CL-005', name:'Fire-Stop Checklist B1',         type:'Fire Stop',  status:'completed', passRate:90, location:'B1', dueDate:'2026-06-07', assignedTo:'Chan Beng Hwa' },
       ]
-    }, e.message));
-  }
-});
+  }));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ACC — Progress / Schedule (no native ACC schedule API)
@@ -352,7 +341,13 @@ app.get('/api/progress', (_req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const mpDb = new Database(path.join(__dirname, 'acc.db'));
 mpDb.pragma('journal_mode = WAL');
-mpDb.exec('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+mpDb.exec(`CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+           CREATE TABLE IF NOT EXISTS manpower_audit (
+             seq INTEGER PRIMARY KEY AUTOINCREMENT,
+             at TEXT, actor TEXT, ip TEXT, action TEXT, before TEXT, after TEXT
+           );`);
+const _mpAudit = mpDb.prepare(`INSERT INTO manpower_audit (at, actor, ip, action, before, after)
+                               VALUES (@at, @actor, @ip, @action, @before, @after)`);
 const MANPOWER_DEFAULT = {
   today: 148, target: 155, utilisation: 95.5,
   trades: [
@@ -370,9 +365,15 @@ function getManpower() {
   return MANPOWER_DEFAULT;
 }
 
+const manpowerLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 30,
+  standardHeaders: true, legacyHeaders: false,
+  message: { ok: false, error: 'Too many manpower updates — slow down' },
+});
+
 app.get('/api/manpower', (_req, res) => res.json({ ...getManpower(), _source: 'managed' }));
 
-app.put('/api/manpower', requireFeatureAdmin('manpower'), (req, res) => {
+app.put('/api/manpower', requireFeatureAdmin('manpower'), manpowerLimiter, (req, res) => {
   const cur = getManpower();
   const b = req.body || {};
   const next = { ...cur };
@@ -384,7 +385,15 @@ app.put('/api/manpower', requireFeatureAdmin('manpower'), (req, res) => {
       .map(t => ({ trade: t.trade.slice(0, 50), count: t.count }));
   }
   next.utilisation = next.target ? Math.round((next.today / next.target) * 1000) / 10 : 0;
-  _mpPut.run(JSON.stringify(next));
+  // Update + audit in one transaction: the change is never saved without its
+  // audit record (actor, before, after, timestamp).
+  mpDb.transaction(() => {
+    _mpPut.run(JSON.stringify(next));
+    _mpAudit.run({
+      at: new Date().toISOString(), actor: req.user.username, ip: req.ip,
+      action: 'manpower.update', before: JSON.stringify(cur), after: JSON.stringify(next),
+    });
+  })();
   res.json({ ok: true, manpower: { ...next, _source: 'managed' } });
 });
 
@@ -571,24 +580,19 @@ app.get('/api/unicon/budget', async (_req, res) => {
 // Power BI — List reports in workspace
 // GET https://api.powerbi.com/v1.0/myorg/groups/{workspaceId}/reports
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/powerbi-reports', async (_req, res) => {
-  const wsId = process.env.PBI_WORKSPACE_ID;
-  if (!wsId) return res.json(mock({ reports: [] }));
-  try {
+app.get('/api/powerbi-reports', (_req, res) => liveOrMock(res, 'powerbi-reports',
+  !!(process.env.PBI_WORKSPACE_ID && process.env.PBI_TENANT_ID && process.env.PBI_CLIENT_ID && process.env.PBI_CLIENT_SECRET),
+  async () => {
+    const wsId = process.env.PBI_WORKSPACE_ID;
     const token = await getPbiToken();
     const r = await fetchT(`https://api.powerbi.com/v1.0/myorg/groups/${wsId}/reports`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!r.ok) throw new Error(`PBI reports ${r.status}`);
     const data = await r.json();
-    res.json({ reports: (data.value || []).map(r => ({ id: r.id, name: r.name, embedUrl: r.embedUrl })) });
-  } catch (e) {
-    console.warn('[/api/powerbi-reports]', e.message);
-    res.json(mock({ reports: [
-      { id: process.env.PBI_REPORT_ID || 'placeholder', name: 'Kay Lim Construction Dashboard' }
-    ]}));
-  }
-});
+    return { reports: (data.value || []).map(rep => ({ id: rep.id, name: rep.name, embedUrl: rep.embedUrl })) };
+  },
+  { reports: [ { id: process.env.PBI_REPORT_ID || 'placeholder', name: 'Kay Lim Construction Dashboard' } ] }));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Power BI — Generate embed token

@@ -253,8 +253,10 @@ export function createStore(dbFile) {
     return true;
   }
 
-  // Replace all data with a freshly seeded dataset, atomically.
-  function seed(elements, weeklyPlanned) {
+  // Replace all data with a freshly seeded dataset, atomically. An optional
+  // auditEntry is recorded in the SAME transaction, so a reset can never commit
+  // without its audit record (if the audit write fails, the reset rolls back).
+  function seed(elements, weeklyPlanned, auditEntry) {
     db.transaction(() => {
       db.exec('DELETE FROM ncrs; DELETE FROM elements;');
       let ncrCount = 0;
@@ -262,6 +264,7 @@ export function createStore(dbFile) {
       metaSet('ncrCounter', ncrCount);
       metaSet('weeklyPlanned', weeklyPlanned);
       metaSet('lastUpdated', new Date().toISOString());
+      if (auditEntry) appendAudit(auditEntry);
     })();
   }
 
