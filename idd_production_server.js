@@ -33,7 +33,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { createStore } from './idd_store.js';
-import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, makeServer } from './auth.js';
+import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, seesAllSites, makeServer } from './auth.js';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
@@ -141,8 +141,16 @@ function uid() { return crypto.randomBytes(6).toString('hex'); }
 // ─── Seed data ───────────────────────────────────────────────────────────────
 const ELEMENT_TYPES = ['Wall Panel','Precast Beam','Precast Column','Precast Slab','PPVC Module'];
 const STATUSES      = ['not_started','in_production','pending_qc','qc_passed','ncr_open','ready_delivery','delivered'];
-const BLOCKS        = ['Blk 301A','Blk 301B','Blk 302'];
 const LEVELS        = ['L01','L02','L03','L04','L05','L06','L07','L08'];
+// Multi-site: every element belongs to a site. Seed spans several sites so the
+// HQ rollup and site-scoped access are exercised; production adds the rest via
+// real data. A user is scoped to one site (HQ roles see all) — see auth.js.
+const SITES = [
+  { id:'SBW-N4',  name:'Sembawang N4 C16',     blocks:['Blk 301A','Blk 301B','Blk 302'] },
+  { id:'TPN-GV',  name:'Tampines GreenVerge',  blocks:['Blk 501A','Blk 501B'] },
+  { id:'JRW-N2',  name:'Jurong West N2',       blocks:['Blk 712','Blk 713'] },
+  { id:'PSR-C38', name:'Pasir Ris C38',        blocks:['Blk 220A'] },
+];
 
 const CHECKLIST_TEMPLATE = [
   { code:'DIM', description:'Dimensions within tolerance (±5mm)' },
@@ -174,12 +182,13 @@ function seedDB(auditEntry) {
   ];
   const pool = statusDist.flatMap(d => Array(d.weight).fill(d.status));
 
-  for (const block of BLOCKS) {
+  for (const site of SITES) {
+   for (const block of site.blocks) {
     for (const level of LEVELS.slice(0, 5)) {
       for (let p = 1; p <= 4; p++) {
         const type     = ELEMENT_TYPES[seq % ELEMENT_TYPES.length];
         const typeCode = type.split(' ').map(w => w[0]).join('');
-        const elemId   = `${block.replace('Blk ','B')}-${level}-${typeCode}-${String(p).padStart(3,'0')}`;
+        const elemId   = `${site.id}-${block.replace('Blk ','B')}-${level}-${typeCode}-${String(p).padStart(3,'0')}`;
         const status   = pool[seq % pool.length];
         const daysAgo  = Math.floor(Math.random() * 30);
         const planned  = new Date(now); planned.setDate(planned.getDate() - daysAgo + 5);
@@ -208,7 +217,7 @@ function seedDB(auditEntry) {
         }
 
         elements.push({
-          id: elemId, seq, type, block, level,
+          id: elemId, seq, site: site.id, siteName: site.name, type, block, level,
           position: `P${String(p).padStart(2,'0')}`,
           batch: `BATCH-${block.replace('Blk ','').replace(' ','')}-W${String(Math.ceil(seq/8)).padStart(2,'0')}`,
           status,
@@ -230,6 +239,7 @@ function seedDB(auditEntry) {
         seq++;
       }
     }
+   }
   }
 
   const ncrCount = elements.reduce((n, e) => n + e.ncrs.length, 0);
@@ -244,10 +254,27 @@ function seedDB(auditEntry) {
 if (store.migrateLegacyBlob()) console.log('  [DB] migrated legacy blob → relational tables');
 else if (store.isEmpty()) seedDB();
 
+// ─── Site scoping ─────────────────────────────────────────────────────────────
+// HQ roles (gm/management/head_of_it) see all sites — and may narrow with ?site=.
+// Everyone else is locked to their own assigned site; unassigned → no data.
+function readSite(req) {
+  if (seesAllSites(req.user.role)) return req.query.site || null;   // null = all sites
+  return req.user.site || '__none__';
+}
+function canAccessSite(req, site) {
+  return seesAllSites(req.user.role) || req.user.site === site;
+}
+
+// List the sites visible to the caller (HQ: all; site user: just theirs).
+app.get('/api/production/sites', requireAuth, (req, res) => {
+  const all = store.sites();
+  res.json(seesAllSites(req.user.role) ? all : all.filter(s => s.site === req.user.site));
+});
+
 // ─── Dashboard endpoint ──────────────────────────────────────────────────────
-app.get('/api/production/dashboard', requireAuth, (_req, res) => {
+app.get('/api/production/dashboard', requireAuth, (req, res) => {
   const { statusCounts, typeCounts, total, actualDates, openNCRs, closedNCRs,
-          weeklyPlanned, lastUpdated } = store.dashboardRaw();
+          bySite, site, weeklyPlanned, lastUpdated } = store.dashboardRaw(readSite(req));
 
   const byStatus = {};
   STATUSES.forEach(s => { byStatus[s] = statusCounts[s] || 0; });
@@ -283,6 +310,7 @@ app.get('/api/production/dashboard', requireAuth, (_req, res) => {
   });
 
   res.json({
+    site, bySite,   // bySite is the HQ per-site rollup (null when scoped to one site)
     total, passed, inProd, pendingQC, ncrOpen, readyDel, delivered,
     completionRate: total ? Math.round((passed / total) * 100) : 0,
     byStatus, byType: typeCounts, weeks, cumul,
@@ -292,13 +320,17 @@ app.get('/api/production/dashboard', requireAuth, (_req, res) => {
 
 // ─── Element list ─────────────────────────────────────────────────────────────
 app.get('/api/production/elements', requireAuth, (req, res) => {
-  res.json(store.listElements(req.query));
+  const q = { ...req.query };
+  const scoped = readSite(req);
+  if (!seesAllSites(req.user.role)) q.site = scoped;   // site users locked to their site
+  res.json(store.listElements(q));
 });
 
 // ─── Element detail ───────────────────────────────────────────────────────────
 app.get('/api/production/elements/:id', requireAuth, (req, res) => {
   const el = store.getElement(req.params.id);
   if (!el) return res.status(404).json({ error:'Not found' });
+  if (!canAccessSite(req, el.site)) return res.status(403).json({ ok:false, error:'Forbidden — element belongs to another site' });
   res.json(el);
 });
 
@@ -308,6 +340,8 @@ app.patch('/api/production/elements/:id/status', requireRole('inspector'), mutat
   if (!VALID_STATUSES.has(status))
     return res.status(400).json({ ok:false, error:'Invalid status value' });
   const byStr = req.user.username;  // identity from verified token, not request body
+  if (!canAccessSite(req, store.elementSite(req.params.id)))
+    return res.status(403).json({ ok:false, error:'Forbidden — element belongs to another site' });
 
   const el = store.withElement(req.params.id, (el, ctx) => {
     el.statusHistory.push({ from:el.status, to:status, by:byStr, at:new Date().toISOString() });
@@ -329,6 +363,8 @@ app.patch('/api/production/elements/:id/checklist', requireRole('inspector'), mu
   const { items } = req.body;
   if (!Array.isArray(items)) return res.status(400).json({ error:'items must be an array' });
   const checkedByStr = req.user.username;  // identity from verified token
+  if (!canAccessSite(req, store.elementSite(req.params.id)))
+    return res.status(403).json({ ok:false, error:'Forbidden — element belongs to another site' });
 
   const el = store.withElement(req.params.id, (el, ctx) => {
     items.forEach(upd => {
@@ -374,6 +410,8 @@ app.post('/api/production/elements/:id/ncrs', requireRole('inspector'), mutation
   const severity = VALID_SEVERITIES.has(req.body.severity) ? req.body.severity : 'minor';
   const location = str(req.body.location, 500) || '';
   const raisedBy = req.user.username;  // identity from verified token
+  if (!canAccessSite(req, store.elementSite(req.params.id)))
+    return res.status(403).json({ ok:false, error:'Forbidden — element belongs to another site' });
 
   const out = store.withElement(req.params.id, (el, ctx) => {
     // Counter incremented inside the same transaction — no collision risk
@@ -405,6 +443,8 @@ app.patch('/api/production/ncrs/:ncrId', requireRole('supervisor'), mutationLimi
   const { status, correctiveAction } = req.body;
   if (status && !['open','in_progress','closed'].includes(status))
     return res.status(400).json({ ok:false, error:'Invalid NCR status' });
+  if (!canAccessSite(req, store.ncrSite(req.params.ncrId)))
+    return res.status(403).json({ ok:false, error:'Forbidden — NCR belongs to another site' });
 
   const out = store.withNcr(req.params.ncrId, (el, ncr, ctx) => {
     if (status) ncr.status = status;
@@ -432,7 +472,8 @@ app.patch('/api/production/ncrs/:ncrId', requireRole('supervisor'), mutationLimi
 
 // ─── All NCRs ─────────────────────────────────────────────────────────────────
 app.get('/api/production/ncrs', requireAuth, (req, res) => {
-  res.json(store.listNcrs(req.query.status));
+  const site = seesAllSites(req.user.role) ? req.query.site : (req.user.site || '__none__');
+  res.json(store.listNcrs(req.query.status, site));
 });
 
 // ─── Reset to seed (dev utility — admin only) ────────────────────────────────

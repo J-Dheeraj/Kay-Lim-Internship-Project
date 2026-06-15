@@ -128,3 +128,38 @@ test('standalone audit chains and tampering is detectable', () => {
   store.audit({ actor: 'admin', ip: '10.0.0.1', action: 'db.reset', details: { backup: 'x.json' } });
   assert.equal(store.verifyAuditChain().valid, true);
 });
+
+test('site scoping: filter, dashboard rollup, and element/ncr site lookups', () => {
+  const f = path.join(os.tmpdir(), `klim-sites-${process.pid}.db`);
+  for (const e of ['', '-wal', '-shm']) fs.rmSync(f + e, { force: true });
+  const s2 = createStore(f);
+  const elem = (id, site, status, ncrs = []) => ({
+    id, seq: parseInt(id.slice(1)), site, siteName: site + ' name', type: 'Wall Panel',
+    block: 'Blk 1', level: 'L01', position: 'P01', batch: 'B', status,
+    plannedDate: '2026-06-01', actualProductionDate: null, checklist: [],
+    statusHistory: [], ncrs, createdAt: '2026-05-01', updatedAt: '2026-05-01',
+  });
+  s2.seed([
+    elem('A1', 'SITE-A', 'delivered'),
+    elem('A2', 'SITE-A', 'ncr_open', [{ id:'NA', elementId:'A2', ncrNo:'NCR-1', description:'x',
+      severity:'major', location:'l', raisedBy:'qc', raisedAt:'2026-06-01', status:'open',
+      correctiveAction:'', closedBy:null, closedAt:null, photos:[] }]),
+    elem('B1', 'SITE-B', 'qc_passed'),
+  ], [8, 8, 8, 8, 8, 8]);
+
+  assert.equal(s2.listElements({ site: 'SITE-A' }).length, 2);
+  assert.equal(s2.listElements({ site: 'SITE-B' }).length, 1);
+  assert.equal(s2.listElements({}).length, 3);
+  assert.equal(s2.listElements({})[0].site, 'SITE-A');         // projection carries site
+  assert.equal(s2.elementSite('A1'), 'SITE-A');
+  assert.equal(s2.ncrSite('NA'), 'SITE-A');
+  assert.equal(s2.listNcrs(undefined, 'SITE-B').length, 0);
+  assert.equal(s2.listNcrs(undefined, 'SITE-A').length, 1);
+
+  assert.equal(s2.dashboardRaw('SITE-A').total, 2);
+  assert.equal(s2.dashboardRaw('SITE-A').bySite, null);
+  const hq = s2.dashboardRaw();
+  assert.equal(hq.total, 3);
+  assert.equal(hq.bySite.length, 2);
+  assert.equal(hq.bySite.find(r => r.site === 'SITE-A').openNCRs, 1);
+});

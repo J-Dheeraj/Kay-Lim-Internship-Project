@@ -28,6 +28,7 @@ export function createStore(dbFile) {
     CREATE TABLE IF NOT EXISTS elements (
       id     TEXT PRIMARY KEY,
       seq    INTEGER,
+      site   TEXT,
       status TEXT,
       block  TEXT,
       type   TEXT,
@@ -35,6 +36,7 @@ export function createStore(dbFile) {
       doc    TEXT NOT NULL,
       updatedAt TEXT
     );
+    CREATE INDEX IF NOT EXISTS idx_elements_site   ON elements(site);
     CREATE INDEX IF NOT EXISTS idx_elements_status ON elements(status);
     CREATE INDEX IF NOT EXISTS idx_elements_block  ON elements(block);
     CREATE INDEX IF NOT EXISTS idx_elements_type   ON elements(type);
@@ -59,12 +61,14 @@ export function createStore(dbFile) {
 
   // ─── prepared statements ───────────────────────────────────────────────────
   const sUpsertEl = db.prepare(`
-    INSERT INTO elements (id, seq, status, block, type, actualProductionDate, doc, updatedAt)
-    VALUES (@id, @seq, @status, @block, @type, @actualProductionDate, @doc, @updatedAt)
+    INSERT INTO elements (id, seq, site, status, block, type, actualProductionDate, doc, updatedAt)
+    VALUES (@id, @seq, @site, @status, @block, @type, @actualProductionDate, @doc, @updatedAt)
     ON CONFLICT(id) DO UPDATE SET
-      seq=excluded.seq, status=excluded.status, block=excluded.block, type=excluded.type,
+      seq=excluded.seq, site=excluded.site, status=excluded.status, block=excluded.block, type=excluded.type,
       actualProductionDate=excluded.actualProductionDate, doc=excluded.doc, updatedAt=excluded.updatedAt`);
   const sGetEl       = db.prepare('SELECT doc FROM elements WHERE id = ?');
+  const sElSite      = db.prepare('SELECT site FROM elements WHERE id = ?');
+  const sNcrSite     = db.prepare('SELECT e.site s FROM ncrs n JOIN elements e ON n.elementId = e.id WHERE n.id = ?');
   const sDelElNcrs   = db.prepare('DELETE FROM ncrs WHERE elementId = ?');
   const sInsNcr      = db.prepare(`
     INSERT INTO ncrs (id, elementId, ncrNo, description, severity, location, raisedBy,
@@ -129,7 +133,7 @@ export function createStore(dbFile) {
   function persistElement(el) {
     const { ncrs = [], ...doc } = el;
     sUpsertEl.run({
-      id: el.id, seq: el.seq, status: el.status, block: el.block, type: el.type,
+      id: el.id, seq: el.seq, site: el.site ?? null, status: el.status, block: el.block, type: el.type,
       actualProductionDate: el.actualProductionDate ?? null,
       doc: JSON.stringify(doc), updatedAt: el.updatedAt ?? new Date().toISOString(),
     });
@@ -176,8 +180,9 @@ export function createStore(dbFile) {
     })();
   }
 
-  function listElements({ status, block, type, q } = {}) {
+  function listElements({ status, block, type, q, site } = {}) {
     const where = [], params = [];
+    if (site)   { where.push('site = ?');   params.push(site); }
     if (status) { where.push('status = ?'); params.push(status); }
     if (block)  { where.push('block = ?');  params.push(block); }
     if (type)   { where.push('type = ?');   params.push(type); }
@@ -191,7 +196,8 @@ export function createStore(dbFile) {
       rows = rows.filter(e => e.id.toLowerCase().includes(lq) || (e.batch || '').toLowerCase().includes(lq));
     }
     return rows.map(e => ({
-      id: e.id, seq: e.seq, type: e.type, block: e.block, level: e.level,
+      id: e.id, seq: e.seq, site: e.site, siteName: e.siteName,
+      type: e.type, block: e.block, level: e.level,
       position: e.position, batch: e.batch, status: e.status,
       plannedDate: e.plannedDate, actualProductionDate: e.actualProductionDate,
       ncrCount: ncrCounts[e.id] || 0,
@@ -199,29 +205,54 @@ export function createStore(dbFile) {
     }));
   }
 
-  function listNcrs(status) {
-    return (status
-      ? db.prepare('SELECT * FROM ncrs WHERE status = ? ORDER BY raisedAt').all(status)
-      : db.prepare('SELECT * FROM ncrs ORDER BY raisedAt').all()
-    ).map(ncrRowToObj);
+  function listNcrs(status, site) {
+    const where = [], params = [];
+    if (status) { where.push('n.status = ?'); params.push(status); }
+    if (site)   { where.push('e.site = ?');   params.push(site); }
+    const sql = 'SELECT n.* FROM ncrs n JOIN elements e ON n.elementId = e.id'
+      + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY n.raisedAt';
+    return db.prepare(sql).all(...params).map(ncrRowToObj);
+  }
+
+  // Site of an element / of the element owning an NCR (for access checks).
+  function elementSite(id)  { return sElSite.get(id)?.site ?? null; }
+  function ncrSite(ncrId)   { return sNcrSite.get(ncrId)?.s ?? null; }
+  // Distinct sites with element counts (HQ rollup / site picker).
+  function sites() {
+    return db.prepare('SELECT site, COUNT(*) elements FROM elements WHERE site IS NOT NULL GROUP BY site ORDER BY site').all();
   }
 
   // Aggregates for the dashboard — computed in SQL, not by scanning JS arrays.
-  function dashboardRaw() {
+  // Optional `site` scopes every figure to one site; otherwise it spans all
+  // sites and includes a per-site rollup (for the HQ view).
+  function dashboardRaw(site) {
+    const elWhere  = site ? ' WHERE site = ?'   : '';
+    const ncrWhere = site ? ' WHERE e.site = ?' : '';
+    const elP  = site ? [site] : [];
     const statusCounts = {}, typeCounts = {};
-    for (const r of db.prepare('SELECT status, COUNT(*) c FROM elements GROUP BY status').all())
+    for (const r of db.prepare(`SELECT status, COUNT(*) c FROM elements${elWhere} GROUP BY status`).all(...elP))
       statusCounts[r.status] = r.c;
-    for (const r of db.prepare('SELECT type, COUNT(*) c FROM elements GROUP BY type').all())
+    for (const r of db.prepare(`SELECT type, COUNT(*) c FROM elements${elWhere} GROUP BY type`).all(...elP))
       typeCounts[r.type] = r.c;
-    const total = db.prepare('SELECT COUNT(*) c FROM elements').get().c;
+    const total = db.prepare(`SELECT COUNT(*) c FROM elements${elWhere}`).get(...elP).c;
     const actualDates = db.prepare(
-      'SELECT actualProductionDate d FROM elements WHERE actualProductionDate IS NOT NULL').all().map(r => r.d);
+      `SELECT actualProductionDate d FROM elements${elWhere ? elWhere + ' AND' : ' WHERE'} actualProductionDate IS NOT NULL`)
+      .all(...elP).map(r => r.d);
     const ncrByStatus = {};
-    for (const r of db.prepare('SELECT status, COUNT(*) c FROM ncrs GROUP BY status').all())
+    for (const r of db.prepare(`SELECT n.status, COUNT(*) c FROM ncrs n JOIN elements e ON n.elementId = e.id${ncrWhere} GROUP BY n.status`).all(...elP))
       ncrByStatus[r.status] = r.c;
+    // HQ rollup: per-site totals + open NCRs (only when not scoped to one site).
+    const bySite = site ? null : db.prepare(`
+      SELECT e.site,
+             COUNT(*) total,
+             SUM(CASE WHEN e.status IN ('qc_passed','ready_delivery','delivered') THEN 1 ELSE 0 END) passed,
+             (SELECT COUNT(*) FROM ncrs n JOIN elements e2 ON n.elementId = e2.id
+                WHERE e2.site = e.site AND n.status = 'open') openNCRs
+      FROM elements e WHERE e.site IS NOT NULL GROUP BY e.site ORDER BY e.site`).all();
     return {
-      statusCounts, typeCounts, total, actualDates,
+      site: site || null, statusCounts, typeCounts, total, actualDates,
       openNCRs: ncrByStatus.open || 0, closedNCRs: ncrByStatus.closed || 0,
+      bySite,
       weeklyPlanned: metaGet('weeklyPlanned', []),
       lastUpdated: metaGet('lastUpdated', null),
     };
@@ -269,6 +300,7 @@ export function createStore(dbFile) {
   }
 
   return { getElement, withElement, withNcr, listElements, listNcrs,
+           elementSite, ncrSite, sites,
            dashboardRaw, isEmpty, counts, exportAll, migrateLegacyBlob, seed,
            audit, verifyAuditChain, NOT_FOUND };
 }

@@ -160,7 +160,7 @@ export function authenticate(token) {
   if (!u) return null;
   const rec = currentUsers()[u.username];
   if (!rec) return null;                               // account removed → reject
-  return { username: u.username, role: rec.role || 'user' };
+  return { username: u.username, role: rec.role || 'user', site: rec.site || null };
 }
 
 // ─── Roles (ascending privilege tiers) ────────────────────────────────────────
@@ -182,6 +182,9 @@ export const ROLE_RANK = {
 };
 export function rank(role) { return ROLE_RANK[role] || 0; }
 export const ROLES = ['viewer', 'hr', 'inspector', 'pm', 'pd', 'gm', 'management', 'head_of_it'];
+
+// HQ roles (tier 4) see all sites; everyone else is scoped to their assigned site.
+export function seesAllSites(role) { return rank(role) >= 4; }
 
 // ─── Express middleware ───────────────────────────────────────────────────────
 export function requireAuth(req, res, next) {
@@ -252,26 +255,29 @@ export function makeServer(app) {
 
 // ─── CLI: node auth.js add-user|remove-user|list-users ───────────────────────
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const [, , cmd, name, pw, role] = process.argv;
+  const [, , cmd, name, pw, role, site] = process.argv;
   const users = readUsers();
   if (cmd === 'add-user' && name && pw) {
     // Accept the named roles; 'admin' stays valid (== head_of_it). Default to
-    // least privilege (viewer) if an unknown/empty role is given.
+    // least privilege (viewer) if an unknown/empty role is given. The optional
+    // <site> scopes non-HQ users to one site (HQ roles see all sites regardless).
     const validRoles = [...ROLES, 'admin'];
     const chosen = validRoles.includes(role) ? role : 'viewer';
-    users[name] = { passwordHash: hashPassword(pw), role: chosen };
+    users[name] = { passwordHash: hashPassword(pw), role: chosen, site: site || null };
     writeUsers(users);
     if (!validRoles.includes(role) && role)
       console.log(`Unknown role '${role}' — defaulting to 'viewer'. Valid: ${ROLES.join(', ')}.`);
-    console.log(`User '${name}' saved (role: ${users[name].role}).`);
+    if (!seesAllSites(chosen) && !site)
+      console.log(`Note: '${name}' is a site-scoped role with no <site> — they will see no site data until assigned one.`);
+    console.log(`User '${name}' saved (role: ${users[name].role}${site ? `, site: ${site}` : ''}).`);
   } else if (cmd === 'remove-user' && name) {
     if (!users[name]) { console.log(`No such user '${name}'.`); process.exit(1); }
     delete users[name];
     writeUsers(users);
     console.log(`User '${name}' removed.`);
   } else if (cmd === 'list-users') {
-    Object.entries(users).forEach(([n, u]) => console.log(`${n}  (${u.role || 'user'})`));
+    Object.entries(users).forEach(([n, u]) => console.log(`${n}  (${u.role || 'user'}${u.site ? ' @ ' + u.site : ''})`));
   } else {
-    console.log(`Usage:\n  node auth.js add-user <username> <password> [${ROLES.join('|')}]\n  node auth.js remove-user <username>\n  node auth.js list-users`);
+    console.log(`Usage:\n  node auth.js add-user <username> <password> [${ROLES.join('|')}] [site]\n  node auth.js remove-user <username>\n  node auth.js list-users`);
   }
 }

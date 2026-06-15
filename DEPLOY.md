@@ -22,9 +22,20 @@ Any of these works — the artifacts are host-agnostic:
 
 | Host | Notes |
 |------|-------|
-| Cloud VPS (DigitalOcean, Hetzner, AWS Lightsail, Azure VM) | Simplest. Public IP for DNS + Let's Encrypt. **Recommended for pilot.** |
+| Cloud VPS (DigitalOcean, Hetzner, AWS Lightsail, GCP Compute Engine) | Simplest. Stable public IP for DNS + Let's Encrypt. **Recommended.** A small instance (2 vCPU / 2–4 GB) comfortably serves 10+ sites. |
 | On-prem Linux VM | Works if ports 80/443 are reachable from the internet for ACME, or use Caddy's DNS-01 challenge (see Caddy docs). |
 | Windows + WSL2 / Docker Desktop | Staging only — not for production exposure. |
+
+> **Note on "cloud":** you need a *compute host* (a server/VM), not cloud
+> **storage**. Google **Drive / Dropbox / OneDrive cannot run this** — they only
+> store files. The Google equivalent of a server is **Google Cloud → Compute
+> Engine**, not Drive. Any small Linux VM works.
+
+**One central deployment serves all sites and HQ** — every site and the HQ office
+access the same server over the internet via the domain (this is how Autodesk ACC
+/ Procore work). Each user is scoped to their site; HQ sees all (see the
+multi-site section in `README.md`). You do **not** deploy a separate copy per
+site.
 
 Requirements: Linux with Docker Engine + Docker Compose v2, ports 80/443 open.
 

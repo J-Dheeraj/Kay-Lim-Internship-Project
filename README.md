@@ -33,7 +33,7 @@ npm run start:idd           # serves the app + API on :3002
 ## Authentication
 - **Per-user login** — `POST /api/login` returns a signed session token (8h); the browser sends it as `Authorization: Bearer <token>`. No API key is ever exposed to the browser.
 - **Logout / revocation** — `POST /api/logout` revokes the token; deleting a user or changing their role takes effect on their next request.
-- **User management** — `node auth.js add-user <name> <password> [viewer|hr|inspector|pm|pd|gm|management|head_of_it]`, `remove-user`, `list-users`. First run creates a `head_of_it` account (password from `ADMIN_PASSWORD`, or printed once).
+- **User management** — `node auth.js add-user <name> <password> [viewer|hr|inspector|pm|pd|gm|management|head_of_it] [site]`, `remove-user`, `list-users`. First run creates a `head_of_it` account (password from `ADMIN_PASSWORD`, or printed once). The optional `[site]` scopes a non-HQ user to one site.
 - **Roles (RBAC)** — four capability tiers, mapped to Kay Lim org positions. Reads are open to any logged-in user; mutations are gated:
 
   | Tier | Roles | Can do |
@@ -44,6 +44,8 @@ npm run start:idd           # serves the app + API on :3002
   | Read-only | `viewer`, `hr` | View dashboards, elements, NCRs |
 
   Only `head_of_it` (IT) holds the *most* access — it's the one full-access role that **also** manages manpower. **Feature-scoped admin** sits alongside the tiers: `hr` (and `head_of_it`) manage the **manpower** feature (`PUT /api/manpower`); GM/Management are full-access but explicitly excluded from manpower. Other features (projects, QSE, etc.) can be scoped to roles the same way as they gain admin actions.
+
+- **Multi-site** — every IDD element/NCR belongs to a **site**. A user assigned a site (`add-user … <role> <site>`) sees and acts on **only that site**; HQ roles (`head_of_it`, `gm`, `management`) see **all sites** and get a per-site rollup on the dashboard (`bySite`). HQ can narrow to one site with `?site=<id>`. `GET /api/production/sites` lists the sites visible to the caller. This is one central deployment serving all sites — see `DEPLOY.md`.
 
 ## Security notes
 - Vendor API keys live server-side in `.env` only — never sent to the browser.

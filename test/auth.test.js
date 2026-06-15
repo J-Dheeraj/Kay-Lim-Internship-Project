@@ -37,7 +37,7 @@ process.on('exit', () => { try { fs.rmSync(USERS_FILE, { force: true }); } catch
 // (static imports are hoisted and would run first).
 const {
   hashPassword, verifyPassword, signToken, verifyToken, requireAuth, requireAdmin,
-  revokeToken, authenticate, requireRole, rank, requireFeatureAdmin,
+  revokeToken, authenticate, requireRole, rank, requireFeatureAdmin, seesAllSites,
 } = await import('../auth.js');
 
 // Express middleware harness.
@@ -201,6 +201,11 @@ test('feature-scoped admin: HR manages manpower, QC roles do not', () => {
   assert.equal(run(gate, 'ines').status, 403);      // inspector cannot
   assert.equal(run(gate, 'vic').status, 403);       // viewer cannot
   assert.equal(run(gate, null).status, 401);        // unauthenticated
+});
+
+test('seesAllSites: HQ roles see all sites, others are site-scoped', () => {
+  for (const r of ['head_of_it', 'admin', 'gm', 'management']) assert.equal(seesAllSites(r), true);
+  for (const r of ['pd', 'pm', 'supervisor', 'inspector', 'hr', 'viewer']) assert.equal(seesAllSites(r), false);
 });
 
 test('org positions map to the right tiers', () => {
