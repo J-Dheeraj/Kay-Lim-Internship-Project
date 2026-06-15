@@ -39,6 +39,40 @@ site.
 
 Requirements: Linux with Docker Engine + Docker Compose v2, ports 80/443 open.
 
+### 1a. Deploying on Google Cloud (Compute Engine) — step by step
+
+You can use Google, but it's **Google Cloud → Compute Engine** (a virtual
+server), **not** Google Drive. Drive only stores files; its storage quota is
+irrelevant here — the VM comes with its own disk (20 GB is ample for this app).
+
+1. Go to **console.cloud.google.com** (not drive.google.com). Create a project
+   and make sure billing is enabled.
+2. **Compute Engine → VM instances → Create instance:**
+   - Region: **asia-southeast1 (Singapore)** — closest to the sites.
+   - Machine type: **e2-small** (2 vCPU, 2 GB) — enough for 10+ sites.
+   - Boot disk: **Ubuntu 22.04 LTS**, 20 GB.
+   - Firewall: tick **Allow HTTP traffic** and **Allow HTTPS traffic**.
+   - Create, then **reserve the External IP as static** (VPC network → IP
+     addresses) so it doesn't change.
+3. Click **SSH** on the instance to open a terminal, then install Docker:
+   ```bash
+   curl -fsSL https://get.docker.com | sudo sh
+   sudo usermod -aG docker $USER     # then close the SSH window and reconnect
+   ```
+4. Deploy:
+   ```bash
+   git clone https://github.com/J-Dheeraj/Kay-Lim-Internship-Project.git
+   cd Kay-Lim-Internship-Project
+   cp .env.deploy.example .env
+   nano .env                          # set DOMAIN, SESSION_SECRET, ADMIN_PASSWORD
+   docker compose --env-file .env up -d --build
+   ```
+5. Point the domain's A-records (step 2 below) at the VM's static External IP.
+   HTTPS provisions automatically within a minute.
+
+Cost: an e2-small in Singapore is roughly US$13–15/month (a smaller e2-micro
+also works for a light pilot). This single VM serves all 10+ sites and HQ.
+
 ## 2. DNS (supervisor)
 
 Point three records at the host's public IP:
