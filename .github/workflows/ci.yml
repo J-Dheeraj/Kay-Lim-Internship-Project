@@ -7,11 +7,12 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ── Unit tests + syntax + compose validation ──────────────────────────────
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: ['20', '22']   # the versions pinned in package.json engines
+        node-version: ['20', '22']   # versions pinned in package.json engines
     steps:
       - uses: actions/checkout@v4
       - name: Use Node ${{ matrix.node-version }}
@@ -27,5 +28,47 @@ jobs:
           node --check idd_production_server.js
           node --check acc_backend_server.js
       - run: npm test
+      - name: Dependency audit (fail on high/critical CVEs)
+        run: npm audit --audit-level=high
       - name: Validate Docker Compose config
-        run: SESSION_SECRET=ci ADMIN_PASSWORD=ci DOMAIN=example.com docker compose config -q
+        run: SESSION_SECRET=ci-placeholder-not-real ADMIN_PASSWORD=ci-placeholder DOMAIN=example.com docker compose config -q
+
+  # ── Secret / credential leak scan ─────────────────────────────────────────
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so gitleaks catches past commits too
+      - name: Gitleaks — scan for leaked credentials
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Container build + vulnerability scan + SBOM ───────────────────────────
+  container-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container image
+        run: docker build -t klim:ci .
+      - name: Trivy — scan for HIGH/CRITICAL CVEs (fail on unfixed)
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: klim:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+      - name: Trivy — generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: klim:ci
+          format: cyclonedx
+          output: sbom.json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.json
+          retention-days: 90

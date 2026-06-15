@@ -1,6 +1,11 @@
 # Single image for both services (run with different commands via compose).
 # Debian slim (glibc) so better-sqlite3's prebuilt binary installs cleanly.
-# Pinned to a digest-stable patch tag rather than a moving major tag.
+#
+# Pinned to a specific patch tag. For immutable digest pinning, run:
+#   docker pull node:22.14-bookworm-slim
+#   docker inspect node:22.14-bookworm-slim --format '{{index .RepoDigests 0}}'
+# then replace the FROM line with:
+#   FROM node:22.14-bookworm-slim@sha256:<digest>
 FROM node:22.14-bookworm-slim
 
 # gosu lets the entrypoint fix volume ownership as root, then drop to an

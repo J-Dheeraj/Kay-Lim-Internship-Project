@@ -21,8 +21,6 @@
  * Auth: per-user login (POST /api/login) → signed 8h session token.
  * Manage users:  node auth.js add-user <name> <password> [admin|user]
  *
- * ⚠ TODO before production:
- *   - Replace JSON file storage with a real database (SQLite → PostgreSQL)
  */
 
 import express  from 'express';
