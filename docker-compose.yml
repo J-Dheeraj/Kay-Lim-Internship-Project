@@ -1,0 +1,77 @@
+# Production-ish deployment: two Node services from one image, behind a Caddy
+# reverse proxy that auto-provisions Let's Encrypt TLS for your domain.
+#
+#   https://${DOMAIN}        + https://cc.${DOMAIN}   -> Command Centre  (acc :3001)
+#   https://idd.${DOMAIN}                             -> IDD Production  (idd :3002)
+#
+# Both services SHARE identity: the same SESSION_SECRET (env) and the same
+# users.json / .revoked.json on the shared `state` volume, so a token or a
+# revocation is valid on either service. Each service keeps its own SQLite DB
+# (acc.db / idd.db) on that same volume.
+#
+# Copy .env.deploy.example -> .env, fill it in, point DNS at the host, then:
+#   docker compose up -d --build
+
+services:
+  acc:
+    build: .
+    command: node acc_backend_server.js
+    environment:
+      PORT: 3001
+      DATA_DIR: /data
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      ALLOWED_ORIGINS: "https://${DOMAIN},https://cc.${DOMAIN}"
+      INTEGRATIONS_STRICT: ${INTEGRATIONS_STRICT:-1}
+      # Vendor credentials (optional — left blank serves mock / not-configured).
+      APS_CLIENT_ID: ${APS_CLIENT_ID:-}
+      APS_CLIENT_SECRET: ${APS_CLIENT_SECRET:-}
+      ACC_ACCOUNT_ID: ${ACC_ACCOUNT_ID:-}
+      ACC_PROJECT_ID: ${ACC_PROJECT_ID:-}
+      PBI_TENANT_ID: ${PBI_TENANT_ID:-}
+      PBI_CLIENT_ID: ${PBI_CLIENT_ID:-}
+      PBI_CLIENT_SECRET: ${PBI_CLIENT_SECRET:-}
+      PBI_WORKSPACE_ID: ${PBI_WORKSPACE_ID:-}
+      PBI_REPORT_ID: ${PBI_REPORT_ID:-}
+      QSE_BASE_URL: ${QSE_BASE_URL:-}
+      QSE_API_KEY: ${QSE_API_KEY:-}
+      UNICON_BASE_URL: ${UNICON_BASE_URL:-}
+      UNICON_API_KEY: ${UNICON_API_KEY:-}
+      UNICON_COMPANY_ID: ${UNICON_COMPANY_ID:-}
+    volumes:
+      - state:/data
+    restart: unless-stopped
+
+  idd:
+    build: .
+    command: node idd_production_server.js
+    environment:
+      PORT: 3002
+      DATA_DIR: /data
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      ALLOWED_ORIGIN: "https://idd.${DOMAIN}"
+    volumes:
+      - state:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - acc
+      - idd
+    restart: unless-stopped
+
+volumes:
+  state:
+  caddy_data:
+  caddy_config:

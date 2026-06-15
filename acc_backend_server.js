@@ -52,6 +52,10 @@ app.use('/api', (req, res, next) => {
 });
 app.post('/api/logout', logoutHandler);   // behind the gate above (requires a valid token)
 
+// Serve the Command Centre dashboard at the root so it can be deployed behind a
+// single origin (the browser then calls /api/* same-origin — no exposed :3001).
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.html')));
+
 // Rate limit the token-generating + vendor-proxy endpoints (per security review)
 const proxyLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -339,7 +343,7 @@ app.get('/api/progress', (_req, res) => {
 // Manpower — HR-managed, persisted (SQLite). Read by any authenticated user;
 // only HR (and head_of_it) may update it. This is real managed data, not mock.
 // ─────────────────────────────────────────────────────────────────────────────
-const mpDb = new Database(path.join(__dirname, 'acc.db'));
+const mpDb = new Database(process.env.ACC_DB_FILE || path.join(process.env.DATA_DIR || __dirname, 'acc.db'));
 mpDb.pragma('journal_mode = WAL');
 mpDb.exec(`CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
            CREATE TABLE IF NOT EXISTS manpower_audit (

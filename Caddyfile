@@ -1,0 +1,19 @@
+# Auto-TLS (Let's Encrypt) once DNS A/AAAA records for these names point at the
+# host. Caddy redirects HTTP->HTTPS automatically and proxies WebSockets (used
+# by the IDD Socket.io realtime feed) without extra config.
+
+(secure) {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
+
+# IDD Production — the IDD server serves its own app + API same-origin.
+idd.{$DOMAIN} {
+	import secure
+	reverse_proxy idd:3002
+}
+
+# Command Centre — the ACC backend serves the dashboard at / and its /api/*.
+{$DOMAIN}, cc.{$DOMAIN} {
+	import secure
+	reverse_proxy acc:3001
+}

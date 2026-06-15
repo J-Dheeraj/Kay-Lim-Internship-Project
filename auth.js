@@ -23,9 +23,12 @@ import { createServer as createHttpsServer } from 'https';
 import { fileURLToPath } from 'url';
 
 const __dirname    = path.dirname(fileURLToPath(import.meta.url));
-const USERS_FILE   = process.env.USERS_FILE || path.join(__dirname, 'users.json');
-const SECRET_FILE  = path.join(__dirname, '.session_secret');
-const REVOKED_FILE = path.join(__dirname, '.revoked.json');
+// Identity/session paths are env-overridable so both services can share one
+// volume in a deployment (set the same DATA_DIR + SESSION_SECRET for both).
+const DATA_DIR     = process.env.DATA_DIR || __dirname;
+const USERS_FILE   = process.env.USERS_FILE   || path.join(DATA_DIR, 'users.json');
+const SECRET_FILE  = process.env.SECRET_FILE  || path.join(DATA_DIR, '.session_secret');
+const REVOKED_FILE = process.env.REVOKED_FILE || path.join(DATA_DIR, '.revoked.json');
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 // ─── Session secret ───────────────────────────────────────────────────────────

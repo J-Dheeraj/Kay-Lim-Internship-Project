@@ -38,7 +38,7 @@ import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, au
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || `http://localhost:${PORT}`;
-const DB_FILE        = path.join(__dirname, 'idd.db');
+const DB_FILE        = process.env.IDD_DB_FILE || path.join(process.env.DATA_DIR || __dirname, 'idd.db');
 
 // ─── Express + Socket.io setup ───────────────────────────────────────────────
 const app = express();

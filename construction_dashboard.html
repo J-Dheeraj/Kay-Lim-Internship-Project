@@ -771,8 +771,12 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <script>
-const BACKEND = localStorage.getItem('backend_url') ||
-  (location.protocol.startsWith('http') ? `${location.protocol}//${location.hostname}:3001` : 'http://localhost:3001');
+// Same-origin when served over HTTP(S) (the ACC backend serves this page in
+// deployment, so /api/* hits it directly — no exposed :3001). A localStorage
+// 'backend_url' override still wins; opening the file directly (file://) uses
+// localhost:3001 for local dev.
+const BACKEND = localStorage.getItem('backend_url') ??
+  (location.protocol.startsWith('http') ? '' : 'http://localhost:3001');
 /* HTML-escape — applied to all backend-supplied strings rendered via innerHTML */
 function esc(v){const d=document.createElement('div');d.textContent=String(v??'');return d.innerHTML;}
 const C=s=>getComputedStyle(document.documentElement).getPropertyValue(s).trim();

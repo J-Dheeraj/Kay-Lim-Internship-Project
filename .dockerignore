@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.git
+.github
+.env
+.env.*
+*.db
+*.db-wal
+*.db-shm
+*.log
+*.tmp
+users.json
+.session_secret
+.revoked.json
+idd_data.json
+idd_data_backup_*.json
