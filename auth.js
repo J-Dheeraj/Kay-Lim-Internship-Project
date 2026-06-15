@@ -52,6 +52,7 @@ export function assertSecureConfig() {
   if (ss && PLACEHOLDER_SECRETS.has(ss))               bad.push('SESSION_SECRET is the example placeholder');
   if (ss && ss.length < 32)                            bad.push('SESSION_SECRET is shorter than 32 chars');
   if (ap && PLACEHOLDER_SECRETS.has(ap))               bad.push('ADMIN_PASSWORD is the example placeholder');
+  if (ap && ap.length < 12)                            bad.push('ADMIN_PASSWORD must be at least 12 characters');
   if (bad.length) {
     console.error(`\n  ✖ Refusing to start — insecure configuration:\n    - ${bad.join('\n    - ')}` +
       `\n    Set strong values in .env (e.g. SESSION_SECRET="$(openssl rand -hex 32)").\n`);

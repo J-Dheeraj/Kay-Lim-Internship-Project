@@ -81,7 +81,10 @@ test('Socket.IO does not leak one site\'s events to another site', async () => {
 
     sa.close(); sb.close();
   } finally {
-    srv.kill();
+    srv.kill('SIGTERM');
+    // Await process exit before removing the temp directory — without this,
+    // SQLite WAL files are still open on Windows and rmSync fails with EBUSY.
+    await new Promise(r => srv.once('exit', r));
     fs.rmSync(DATA, { recursive: true, force: true });
   }
 });

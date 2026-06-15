@@ -605,6 +605,8 @@ app.get('/api/powerbi-reports', (_req, res) => liveOrMock(res, 'powerbi-reports'
 // POST https://api.powerbi.com/v1.0/myorg/groups/{groupId}/reports/{reportId}/GenerateToken
 // Requires: service principal added as Member/Admin to the workspace (see setup steps above)
 // ─────────────────────────────────────────────────────────────────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 app.get('/api/powerbi-embed', async (req, res) => {
   const wsId  = process.env.PBI_WORKSPACE_ID;
   const repId = req.query.reportId || process.env.PBI_REPORT_ID;
@@ -613,6 +615,10 @@ app.get('/api/powerbi-embed', async (req, res) => {
       note: 'Set PBI_WORKSPACE_ID and PBI_REPORT_ID in .env. See setup steps in server comments.'
     }));
   }
+  // Reject non-UUID values to prevent path injection into the Power BI API URL.
+  if (!UUID_RE.test(repId))
+    return res.status(400).json({ ok: false, error: 'Invalid report ID format' });
+
   try {
     const token = await getPbiToken();
     // Step 1: Get report details (for embedUrl + datasetId)
@@ -622,14 +628,22 @@ app.get('/api/powerbi-embed', async (req, res) => {
     if (!rptRes.ok) throw new Error(`PBI report fetch ${rptRes.status}`);
     const rpt = await rptRes.json();
 
-    // Step 2: Generate embed token (newer GenerateToken v2 API — supports multiple reports/datasets)
+    // Step 2: Generate embed token. Pass effective identity so Power BI Row-Level
+    // Security (if configured on the dataset) scopes data to the caller's username
+    // and application role. Harmless when the dataset has no RLS rules.
+    const body = {
+      datasets: [{ id: rpt.datasetId }],
+      reports:  [{ id: repId }],
+      identities: [{
+        username: req.user.username,
+        roles:    [req.user.role],   // map to a matching Power BI RLS role name
+        datasets: [rpt.datasetId],
+      }],
+    };
     const tokenRes = await fetchT(`https://api.powerbi.com/v1.0/myorg/GenerateToken`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        datasets: [{ id: rpt.datasetId }],
-        reports:  [{ id: repId }]
-      })
+      body: JSON.stringify(body)
     });
     if (!tokenRes.ok) {
       const errBody = await tokenRes.text();

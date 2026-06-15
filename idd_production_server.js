@@ -130,9 +130,24 @@ io.on('connection', socket => {
   if (seesAllSites(u.role)) socket.join('hq');
   else if (u.site)          socket.join(`site:${u.site}`);
   console.log(`  [WS] Client connected   · ${socket.id} · ${u.username} · ${seesAllSites(u.role) ? 'hq' : 'site:' + (u.site || 'none')} · total: ${io.engine.clientsCount}`);
-  socket.on('disconnect', () =>
-    console.log(`  [WS] Client disconnected · ${socket.id} · total: ${io.engine.clientsCount}`)
-  );
+
+  // Re-validate every 2 minutes. Catches token revocation, account deletion,
+  // role changes, and site reassignments without waiting for a page reload.
+  const reAuthTimer = setInterval(() => {
+    const fresh = authenticate(socket.handshake.auth?.token);
+    if (!fresh || fresh.role !== u.role || fresh.site !== (u.site ?? null)) {
+      const reason = fresh
+        ? 'Role or site changed — please reload'
+        : 'Session expired or account removed';
+      socket.emit('reauth_required', { reason });
+      socket.disconnect(true);
+    }
+  }, 2 * 60 * 1000);
+
+  socket.on('disconnect', () => {
+    clearInterval(reAuthTimer);
+    console.log(`  [WS] Client disconnected · ${socket.id} · total: ${io.engine.clientsCount}`);
+  });
 });
 
 // Global broadcast — only for no-data signals (e.g. a refresh ping).
