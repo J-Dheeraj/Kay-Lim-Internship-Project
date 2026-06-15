@@ -680,9 +680,7 @@ tr:last-child td{border-bottom:none}
     <label style="font-size:.85rem;font-weight:500;margin-right:.5rem">Report:</label>
     <select id="pbi-report-select" onchange="loadPbiReport(this.value)" style="font-size:.85rem;padding:.3rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card)"></select>
   </div>
-  <div id="pbi-embed-container" style="width:100%;height:calc(100vh - 220px);min-height:480px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:#fff;display:none">
-    <iframe id="pbi-iframe" style="width:100%;height:100%;border:none"></iframe>
-  </div>
+  <div id="pbi-embed-container" style="width:100%;height:calc(100vh - 220px);min-height:480px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:#fff;display:none"></div>
   <div id="pbi-setup-guide" class="card" style="padding:1.6rem 2rem;max-width:640px">
     <h3 style="font-size:1rem;font-weight:600;margin:0 0 1rem">&#128640; Connect Power BI in 3 steps</h3>
     <ol style="line-height:1.9;font-size:.87rem;color:var(--muted);padding-left:1.2rem">
@@ -1094,21 +1092,37 @@ async function loadAll(){
   /* ── Power BI reports list ── */
   const pbiRep=await tryFetch('/api/powerbi-reports',null);
   if(pbiRep&&(pbiRep.reports||pbiRep.value)){const _r=pbiRep.reports||pbiRep.value;
-    const container=document.getElementById('pbi-report-list');
-    if(container){
-      container.innerHTML='';
+    const listEl=document.getElementById('pbi-report-list');
+    const guideEl=document.getElementById('pbi-setup-guide');
+    const embedEl=document.getElementById('pbi-embed-container');
+    const pbiLive=intStatus&&intStatus.pbi&&intStatus.pbi.configured;
+    if(listEl){
+      listEl.innerHTML='';
       /* Build via DOM + addEventListener: the report id is bound as a JS value,
          never concatenated into a markup/handler string, so a malicious or
          compromised report id cannot inject script (DOM XSS). */
-      _r.forEach(r=>{
+      let firstId=null;
+      _r.forEach((r,i)=>{
+        if(i===0) firstId=r.id;
         const div=document.createElement('div');
+        div.dataset.reportId=r.id;
         div.style.cssText='padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s';
         div.textContent='📊 '+(r.name==null?'':String(r.name));
-        div.addEventListener('click',()=>loadPbiReport(r.id));
-        div.addEventListener('mouseover',()=>div.style.background='#f0f4ff');
-        div.addEventListener('mouseout',()=>div.style.background='#fff');
-        container.appendChild(div);
+        div.addEventListener('click',()=>{
+          listEl.querySelectorAll('[data-report-id]').forEach(d=>d.style.background='#fff');
+          div.style.background='#e8f0fe';
+          loadPbiReport(r.id);
+        });
+        div.addEventListener('mouseover',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#f0f4ff'});
+        div.addEventListener('mouseout',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#fff'});
+        listEl.appendChild(div);
       });
+      listEl.style.display='block';
+      if(pbiLive){
+        if(guideEl) guideEl.style.display='none';
+        if(embedEl) embedEl.style.display='block';
+        if(firstId) loadPbiReport(firstId);  // auto-load first report when credentials are live
+      }
     }
   }
 }
@@ -1127,20 +1141,30 @@ async function initPBI(){
 window.loadPbiReport=async function(reportId){
   await initPBI();
   const container=document.getElementById('pbi-embed-container');
+  const guide=document.getElementById('pbi-setup-guide');
   if(!container)return;
+  container.style.display='block';
   container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.88rem">Loading report…</div>';
-  const data=await tryFetch('/api/powerbi-embed?reportId='+reportId,null);
+  const data=await tryFetch('/api/powerbi-embed?reportId='+encodeURIComponent(reportId),null);
   if(!data||data.error){
     container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--amber);font-size:.88rem">⚠ '+esc(data&&data.error?data.error:'Unable to load report. Check Power BI credentials in .env')+'</div>';
     return;
   }
   if(data._source==='mock'||!data.embedToken){
-    container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.86rem">Power BI Embedded requires Azure AD credentials configured in .env<br><br><a href="https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal" target="_blank" style="color:var(--blue)">Setup guide →</a></div>';
+    container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.86rem">Power BI Embedded requires Azure AD credentials in .env<br><br><a href="https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal" target="_blank" style="color:var(--blue)">Setup guide →</a></div>';
     return;
   }
-  const cfg={type:'report',id:data.reportId,embedUrl:data.embedUrl,accessToken:data.embedToken,tokenType:window.models.TokenType.Embed,settings:{navContentPaneEnabled:true,filterPaneEnabled:true}};
+  if(guide) guide.style.display='none';
+  const cfg={type:'report',id:data.reportId,embedUrl:data.embedUrl,accessToken:data.embedToken,
+    tokenType:window.models.TokenType.Embed,
+    settings:{navContentPaneEnabled:true,filterPaneEnabled:true}};
   container.innerHTML='';
-  window.powerbi.embed(container,cfg);
+  const report=window.powerbi.embed(container,cfg);
+  // Refresh the embed token before it expires (Power BI tokens default to 60 min).
+  report.on('tokenExpired',async()=>{
+    const fresh=await tryFetch('/api/powerbi-embed?reportId='+encodeURIComponent(reportId),null);
+    if(fresh&&fresh.embedToken) report.setAccessToken(fresh.embedToken).catch(()=>{});
+  });
 };
 </script>
 </body>
