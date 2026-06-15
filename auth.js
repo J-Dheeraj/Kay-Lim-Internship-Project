@@ -161,23 +161,21 @@ export function authenticate(token) {
 }
 
 // ─── Roles (ascending privilege tiers) ────────────────────────────────────────
-// Higher rank ⇒ more access. Kay Lim's org positions map onto four capability
-// tiers. IT is the only full system admin; the management positions (Management,
-// GM, PD, PM) are full QC/NCR admins (incl. closing/approving NCRs) but not
-// system admins; QC inspectors can raise but not close NCRs (separation of
-// duties); HR and viewers are read-only.
-//   Tier 1 (read-only)        : viewer, hr
-//   Tier 2 (QC inspector)     : inspector            (+ legacy 'user')
-//   Tier 3 (QC/NCR manager)   : pm, pd, gm, management(+ legacy 'supervisor')
-//   Tier 4 (full system admin): head_of_it           (+ legacy 'admin')
-// Feature-scoped admin (see FEATURE_ADMINS / requireFeatureAdmin) sits alongside
-// these tiers: e.g. HR administers the manpower feature even though HR is QC
-// read-only. More features can be scoped to roles as they gain admin actions.
+// Higher rank ⇒ more access. Kay Lim's org positions map onto capability tiers.
+//   Tier 1 (read-only)         : viewer, hr
+//   Tier 2 (QC inspector)      : inspector             (+ legacy 'user')
+//   Tier 3 (QC/NCR manager)    : pm, pd                (+ legacy 'supervisor')
+//   Tier 4 (full access)       : head_of_it, gm, management  (+ legacy 'admin')
+// GM and Management have full view+change access (all QC actions, DB reset,
+// audit verify) — but NOT the manpower feature, which is HR/IT only. That carve
+// out is enforced by FEATURE_ADMINS / requireFeatureAdmin, which only admits the
+// roles listed for a feature (plus head_of_it). So tier 4 passes every role gate
+// while still being denied manpower writes unless the role is hr or head_of_it.
 export const ROLE_RANK = {
   viewer: 1, hr: 1,
   user: 2, inspector: 2,
-  supervisor: 3, pm: 3, pd: 3, gm: 3, management: 3,
-  head_of_it: 4, admin: 4,
+  supervisor: 3, pm: 3, pd: 3,
+  gm: 4, management: 4, head_of_it: 4, admin: 4,
 };
 export function rank(role) { return ROLE_RANK[role] || 0; }
 export const ROLES = ['viewer', 'hr', 'inspector', 'pm', 'pd', 'gm', 'management', 'head_of_it'];

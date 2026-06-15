@@ -26,8 +26,9 @@ fs.writeFileSync(USERS_FILE, JSON.stringify({
   ines:  { passwordHash: 'x', role: 'inspector' },
   sam:   { passwordHash: 'x', role: 'supervisor' },
   hank:  { passwordHash: 'x', role: 'head_of_it' },
-  peggy: { passwordHash: 'x', role: 'pm' },         // org role → manager tier
+  peggy: { passwordHash: 'x', role: 'pm' },         // org role → manager tier (3)
   holly: { passwordHash: 'x', role: 'hr' },         // org role → read-only
+  gina:  { passwordHash: 'x', role: 'gm' },         // org role → full access except manpower (4)
 }));
 process.env.USERS_FILE = USERS_FILE;
 process.on('exit', () => { try { fs.rmSync(USERS_FILE, { force: true }); } catch {} });
@@ -182,9 +183,11 @@ test('separation of duties: inspector cannot close NCRs (supervisor gate)', () =
   assert.equal(run(gate, 'hank').nexted, true);  // head_of_it can close
 });
 
-test('only head_of_it passes the top gate (reset/audit)', () => {
+test('top gate (reset/audit): head_of_it + GM/Management pass, PM/supervisor do not', () => {
   const gate = requireRole('head_of_it');
   assert.equal(run(gate, 'sam').status, 403);    // supervisor blocked
+  assert.equal(run(gate, 'peggy').status, 403);  // PM (manager) blocked
+  assert.equal(run(gate, 'gina').nexted, true);  // GM has full access
   assert.equal(run(gate, 'hank').nexted, true);  // head_of_it ok
   assert.equal(run(gate, 'eve').nexted, true);   // legacy admin == head_of_it
 });
@@ -194,6 +197,7 @@ test('feature-scoped admin: HR manages manpower, QC roles do not', () => {
   assert.equal(run(gate, 'holly').nexted, true);   // HR can manage manpower
   assert.equal(run(gate, 'hank').nexted, true);     // head_of_it always can
   assert.equal(run(gate, 'peggy').status, 403);     // PM (manager) cannot — wrong feature
+  assert.equal(run(gate, 'gina').status, 403);      // GM has full access EXCEPT manpower
   assert.equal(run(gate, 'ines').status, 403);      // inspector cannot
   assert.equal(run(gate, 'vic').status, 403);       // viewer cannot
   assert.equal(run(gate, null).status, 401);        // unauthenticated

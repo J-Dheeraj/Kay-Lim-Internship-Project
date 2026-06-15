@@ -38,12 +38,12 @@ npm run start:idd           # serves the app + API on :3002
 
   | Tier | Roles | Can do |
   |------|-------|--------|
-  | Full system admin | `head_of_it` (legacy `admin`) | Everything: DB reset, audit verification, all QC/NCR actions |
-  | QC/NCR manager | `management`, `gm`, `pd`, `pm` (legacy `supervisor`) | Change status, submit checklists, raise **and close/approve** NCRs |
+  | Full access | `head_of_it` (legacy `admin`), `gm`, `management` | Everything: DB reset, audit verification, all QC/NCR actions. **GM/Management get everything *except* the manpower feature** (HR/IT only). |
+  | QC/NCR manager | `pd`, `pm` (legacy `supervisor`) | Change status, submit checklists, raise **and close/approve** NCRs |
   | QC inspector | `inspector` (legacy `user`) | Change status, submit checklists, raise NCRs — **cannot close** (separation of duties) |
   | Read-only | `viewer`, `hr` | View dashboards, elements, NCRs |
 
-  IT is the only full system admin. **Feature-scoped admin** sits alongside the QC tiers: `hr` (and `head_of_it`) can manage the **manpower** feature (`PUT /api/manpower`) even though HR is QC read-only. Other features (projects, QSE, etc.) can be scoped to roles the same way as they gain admin actions.
+  Only `head_of_it` (IT) holds the *most* access — it's the one full-access role that **also** manages manpower. **Feature-scoped admin** sits alongside the tiers: `hr` (and `head_of_it`) manage the **manpower** feature (`PUT /api/manpower`); GM/Management are full-access but explicitly excluded from manpower. Other features (projects, QSE, etc.) can be scoped to roles the same way as they gain admin actions.
 
 ## Security notes
 - Vendor API keys live server-side in `.env` only — never sent to the browser.
