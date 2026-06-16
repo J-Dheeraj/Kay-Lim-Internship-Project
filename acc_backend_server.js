@@ -24,6 +24,17 @@ import { requireAuth, loginHandler, logoutHandler, requireFeatureAdmin, assertSe
 assertSecureConfig();   // refuse to boot with example/placeholder secrets
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Application-side Power BI report allowlist.
+// Set POWERBI_ALLOWED_REPORTS to a comma-separated list of report UUIDs that
+// this application is permitted to embed. When set, any request for a report
+// not in this list is rejected with 403 — even if the service principal could
+// technically reach it in the workspace. When unset, no allowlist is enforced
+// (safe for development; must be configured before production deployment).
+const PBI_ALLOWED = new Set(
+  (process.env.POWERBI_ALLOWED_REPORTS || '')
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+);
 const app = express();
 const ALLOWED = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001').split(',');
 app.use(cors({ origin: (o, cb) => (!o || ALLOWED.includes(o)) ? cb(null, true) : cb(new Error('CORS blocked: ' + o)) }));
@@ -596,7 +607,11 @@ app.get('/api/powerbi-reports', (_req, res) => liveOrMock(res, 'powerbi-reports'
     });
     if (!r.ok) throw new Error(`PBI reports ${r.status}`);
     const data = await r.json();
-    return { reports: (data.value || []).map(rep => ({ id: rep.id, name: rep.name, embedUrl: rep.embedUrl })) };
+    return {
+      reports: (data.value || [])
+        .filter(rep => PBI_ALLOWED.size === 0 || PBI_ALLOWED.has(rep.id.toLowerCase()))
+        .map(rep => ({ id: rep.id, name: rep.name, embedUrl: rep.embedUrl }))
+    };
   },
   { reports: [ { id: process.env.PBI_REPORT_ID || 'placeholder', name: 'Kay Lim Construction Dashboard' } ] }));
 
@@ -618,6 +633,9 @@ app.get('/api/powerbi-embed', async (req, res) => {
   // Reject non-UUID values to prevent path injection into the Power BI API URL.
   if (!UUID_RE.test(repId))
     return res.status(400).json({ ok: false, error: 'Invalid report ID format' });
+  // Reject report IDs not in the application allowlist.
+  if (PBI_ALLOWED.size > 0 && !PBI_ALLOWED.has(repId.toLowerCase()))
+    return res.status(403).json({ ok: false, error: 'Report not in application allowlist' });
 
   try {
     const token = await getPbiToken();

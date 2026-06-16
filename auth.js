@@ -18,6 +18,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import Database from 'better-sqlite3';
 import { createServer as createHttpServer }  from 'http';
 import { createServer as createHttpsServer } from 'https';
 import { fileURLToPath } from 'url';
@@ -26,10 +27,22 @@ const __dirname    = path.dirname(fileURLToPath(import.meta.url));
 // Identity/session paths are env-overridable so both services can share one
 // volume in a deployment (set the same DATA_DIR + SESSION_SECRET for both).
 const DATA_DIR     = process.env.DATA_DIR || __dirname;
-const USERS_FILE   = process.env.USERS_FILE   || path.join(DATA_DIR, 'users.json');
-const SECRET_FILE  = process.env.SECRET_FILE  || path.join(DATA_DIR, '.session_secret');
-const REVOKED_FILE = process.env.REVOKED_FILE || path.join(DATA_DIR, '.revoked.json');
+const USERS_FILE   = process.env.USERS_FILE  || path.join(DATA_DIR, 'users.json');
+const SECRET_FILE  = process.env.SECRET_FILE || path.join(DATA_DIR, '.session_secret');
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+
+// ─── Token revocation store (SQLite) ─────────────────────────────────────────
+// SQLite WAL mode allows concurrent readers + one writer without any file-level
+// locking. revokeToken() and isRevoked() are individually atomic — no race
+// window is possible (replaces the previous append-only NDJSON approach).
+const _revokedDb = new Database(path.join(DATA_DIR, 'revocations.db'));
+_revokedDb.pragma('journal_mode = WAL');
+_revokedDb.exec(`
+  CREATE TABLE IF NOT EXISTS revocations (jti TEXT PRIMARY KEY, exp INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS idx_rev_exp ON revocations(exp);
+`);
+const _revokeStmt  = _revokedDb.prepare('INSERT OR REPLACE INTO revocations (jti, exp) VALUES (?,?)');
+const _isRevokedSt = _revokedDb.prepare('SELECT 1 FROM revocations WHERE jti=?');
 
 // ─── Session secret ───────────────────────────────────────────────────────────
 function loadSecret() {
@@ -60,36 +73,14 @@ export function assertSecureConfig() {
   }
 }
 
-// ─── Token revocation (append-only denylist of jti → expiry) ──────────────────
-// Shared on disk so both servers honour the same revocations and they survive a
-// restart. A revoke is a single atomic APPEND (one JSON line) — never a
-// read-modify-write — so two services revoking concurrently cannot overwrite
-// each other and "un-revoke" a token. Expired entries are filtered in memory on
-// read; the log is only ever appended to (compact offline if it grows large).
-let _revokedCache = { mtime: 0, size: 0, set: new Map() };
-function loadRevoked() {
-  try {
-    const stat = fs.statSync(REVOKED_FILE);
-    if (stat.mtimeMs !== _revokedCache.mtime || stat.size !== _revokedCache.size) {
-      const set = new Map();
-      const now = Date.now();
-      for (const line of fs.readFileSync(REVOKED_FILE, 'utf8').split('\n')) {
-        if (!line) continue;
-        try { const { jti, exp } = JSON.parse(line); if (typeof exp === 'number' && exp > now) set.set(jti, exp); } catch {}
-      }
-      _revokedCache = { mtime: stat.mtimeMs, size: stat.size, set };
-    }
-  } catch { /* no file yet → nothing revoked */ }
-  return _revokedCache.set;
-}
+// ─── Token revocation helpers ─────────────────────────────────────────────────
 function isRevoked(jti) {
-  return jti ? loadRevoked().has(jti) : false;
+  return jti ? !!_isRevokedSt.get(jti) : false;
 }
 export function revokeToken(token) {
   const data = decodeToken(token);
   if (!data?.jti) return false;
-  fs.appendFileSync(REVOKED_FILE, JSON.stringify({ jti: data.jti, exp: data.exp }) + '\n', { mode: 0o600 });
-  _revokedCache.mtime = 0; // force reload next check
+  _revokeStmt.run(data.jti, data.exp);
   return true;
 }
 
@@ -301,25 +292,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   } else if (cmd === 'list-users') {
     Object.entries(users).forEach(([n, u]) => console.log(`${n}  (${u.role || 'user'}${u.site ? ' @ ' + u.site : ''})`));
   } else if (cmd === 'compact-revoked') {
-    // Rewrite the revocation log keeping only non-expired entries.
-    // Race-safe: snapshot the file size before reading, then re-read any lines
-    // appended by revokeToken() during our work window and carry them forward
-    // before the atomic rename — so no concurrent logout is silently dropped.
-    if (!fs.existsSync(REVOKED_FILE)) { console.log('No revocation log found — nothing to compact.'); process.exit(0); }
-    const snapSize = fs.statSync(REVOKED_FILE).size;
-    const lines = fs.readFileSync(REVOKED_FILE, 'utf8').split('\n').filter(Boolean);
-    const now = Date.now();
-    const valid = lines.filter(l => { try { return JSON.parse(l).exp > now; } catch { return false; } });
-    const tmp = REVOKED_FILE + '.tmp';
-    fs.writeFileSync(tmp, valid.length ? valid.join('\n') + '\n' : '', { mode: 0o600 });
-    // Carry forward any lines appended concurrently during our work window
-    const afterSize = fs.statSync(REVOKED_FILE).size;
-    if (afterSize > snapSize) {
-      const extra = fs.readFileSync(REVOKED_FILE, 'utf8').split('\n').filter(Boolean).slice(lines.length);
-      if (extra.length) fs.appendFileSync(tmp, extra.join('\n') + '\n', { mode: 0o600 });
-    }
-    fs.renameSync(tmp, REVOKED_FILE);
-    console.log(`Compacted: kept ${valid.length} active entries, removed ${lines.length - valid.length} expired.`);
+    // Remove expired entries from the revocations SQLite DB.
+    // SQLite handles concurrent access atomically — no race window.
+    const { changes } = _revokedDb.prepare('DELETE FROM revocations WHERE exp < ?').run(Date.now());
+    console.log(`Compacted: removed ${changes} expired entries.`);
   } else {
     console.log(`Usage:\n  node auth.js add-user <username> <password> [${ROLES.join('|')}] [site]\n  node auth.js remove-user <username>\n  node auth.js list-users\n  node auth.js compact-revoked`);
   }
