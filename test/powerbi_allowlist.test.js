@@ -55,10 +55,12 @@ test('Power BI embed endpoint rejects reports outside the application allowlist'
   });
   srv.stderr.on('data', d => process.stderr.write('[server] ' + d));
   try {
-    for (let i = 0; i < 40; i++) {
-      try { if ((await fetch(`${BASE}/api/health`)).ok) break; } catch {}
+    let healthy = false;
+    for (let i = 0; i < 80; i++) {
+      try { if ((await fetch(`${BASE}/api/health`)).ok) { healthy = true; break; } } catch {}
       await sleep(250);
     }
+    assert.ok(healthy, 'server became healthy before timeout');
     const token = await login();
     assert.ok(token, 'login succeeds');
 
