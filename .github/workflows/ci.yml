@@ -52,6 +52,21 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
       - name: Build container image
         run: docker build -t klim:ci .
+      - name: Trivy — dump findings to JSON (for artifact)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
+        with:
+          image-ref: klim:ci
+          format: json
+          output: trivy-results.json
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+      - name: Upload Trivy findings artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: trivy-findings-${{ github.sha }}
+          path: trivy-results.json
+          retention-days: 7
       - name: Trivy — scan for HIGH/CRITICAL CVEs (fail on unfixed)
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
         with:
