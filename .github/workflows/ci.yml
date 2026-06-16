@@ -61,6 +61,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: library
           severity: HIGH,CRITICAL
+          trivyignores: .trivyignore
       - name: Trivy — scan OS packages for HIGH/CRITICAL CVEs (report only)
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
         with:
@@ -71,6 +72,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: os
           severity: HIGH,CRITICAL
+          trivyignores: .trivyignore
       - name: Upload OS CVE findings artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:

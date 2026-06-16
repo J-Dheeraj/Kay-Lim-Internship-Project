@@ -1,0 +1,7 @@
+# CVE-2026-33671: picomatch ReDoS via extglob patterns
+# Affects picomatch <4.0.4 / <3.0.2 / <2.3.2
+# picomatch is a transitive dependency of npm (the CLI bundled inside the
+# node:22 base image), NOT a dependency of this application. It is not
+# reachable from our code paths. Fix is owned by the Node.js image
+# maintainer and will be resolved when the base image is updated.
+CVE-2026-33671
