@@ -1,5 +1,6 @@
 node_modules/
 .env
+docker-compose.override.yml
 idd_data.json
 idd_data_backup_*.json
 *.log

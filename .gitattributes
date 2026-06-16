@@ -1,0 +1,9 @@
+# Force LF line endings for files that run inside Linux containers or shells,
+# regardless of the checkout platform's core.autocrlf setting. Without this,
+# a Windows checkout can silently convert shebang scripts to CRLF, which
+# breaks `exec` in the container with "no such file or directory" (the
+# kernel looks for an interpreter literally named e.g. "/bin/sh\r").
+*.sh      text eol=lf
+Dockerfile text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
