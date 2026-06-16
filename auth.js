@@ -302,16 +302,22 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     Object.entries(users).forEach(([n, u]) => console.log(`${n}  (${u.role || 'user'}${u.site ? ' @ ' + u.site : ''})`));
   } else if (cmd === 'compact-revoked') {
     // Rewrite the revocation log keeping only non-expired entries.
-    // Safe maintenance command: write to a tmp file then atomic rename so a
-    // concurrent append is never lost mid-compaction. Run during low-traffic
-    // windows; at worst one in-flight revocation issued between writeFileSync
-    // and renameSync is dropped (the token still expires naturally).
+    // Race-safe: snapshot the file size before reading, then re-read any lines
+    // appended by revokeToken() during our work window and carry them forward
+    // before the atomic rename — so no concurrent logout is silently dropped.
     if (!fs.existsSync(REVOKED_FILE)) { console.log('No revocation log found — nothing to compact.'); process.exit(0); }
+    const snapSize = fs.statSync(REVOKED_FILE).size;
     const lines = fs.readFileSync(REVOKED_FILE, 'utf8').split('\n').filter(Boolean);
     const now = Date.now();
     const valid = lines.filter(l => { try { return JSON.parse(l).exp > now; } catch { return false; } });
     const tmp = REVOKED_FILE + '.tmp';
     fs.writeFileSync(tmp, valid.length ? valid.join('\n') + '\n' : '', { mode: 0o600 });
+    // Carry forward any lines appended concurrently during our work window
+    const afterSize = fs.statSync(REVOKED_FILE).size;
+    if (afterSize > snapSize) {
+      const extra = fs.readFileSync(REVOKED_FILE, 'utf8').split('\n').filter(Boolean).slice(lines.length);
+      if (extra.length) fs.appendFileSync(tmp, extra.join('\n') + '\n', { mode: 0o600 });
+    }
     fs.renameSync(tmp, REVOKED_FILE);
     console.log(`Compacted: kept ${valid.length} active entries, removed ${lines.length - valid.length} expired.`);
   } else {

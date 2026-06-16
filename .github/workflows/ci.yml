@@ -14,9 +14,9 @@ jobs:
       matrix:
         node-version: ['20', '22']   # versions pinned in package.json engines
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
       - name: Use Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -37,11 +37,11 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           fetch-depth: 0   # full history so gitleaks catches past commits too
       - name: Gitleaks — scan for leaked credentials
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -49,11 +49,11 @@ jobs:
   container-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
       - name: Build container image
         run: docker build -t klim:ci .
       - name: Trivy — scan for HIGH/CRITICAL CVEs (fail on unfixed)
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
         with:
           image-ref: klim:ci
           format: table
@@ -61,13 +61,13 @@ jobs:
           ignore-unfixed: true
           severity: HIGH,CRITICAL
       - name: Trivy — generate CycloneDX SBOM
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
         with:
           image-ref: klim:ci
           format: cyclonedx
           output: sbom.json
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: sbom-${{ github.sha }}
           path: sbom.json

@@ -20,17 +20,18 @@ const PORT = 3097;
 const BASE = `http://127.0.0.1:${PORT}`;
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'klim-sock-'));
 const USERS = path.join(DATA, 'users.json');
+const TEST_PASS = 'test-socket-pw-1';   // ≥12 chars — satisfies assertSecureConfig
 fs.writeFileSync(USERS, JSON.stringify({
-  admin: { passwordHash: hashPassword('pw'), role: 'head_of_it' },
-  inspA: { passwordHash: hashPassword('pw'), role: 'inspector', site: 'SBW-N4' },
-  inspB: { passwordHash: hashPassword('pw'), role: 'inspector', site: 'TPN-GV' },
+  admin: { passwordHash: hashPassword(TEST_PASS), role: 'head_of_it' },
+  inspA: { passwordHash: hashPassword(TEST_PASS), role: 'inspector', site: 'SBW-N4' },
+  inspB: { passwordHash: hashPassword(TEST_PASS), role: 'inspector', site: 'TPN-GV' },
 }));
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function login(u) {
   const r = await fetch(`${BASE}/api/login`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: u, password: 'pw' }),
+    body: JSON.stringify({ username: u, password: TEST_PASS }),
   });
   return (await r.json()).token;
 }
@@ -46,9 +47,10 @@ test('Socket.IO does not leak one site\'s events to another site', async () => {
   const srv = spawn(process.execPath, ['idd_production_server.js'], {
     cwd: path.resolve('.'),
     env: { ...process.env, PORT: String(PORT), DATA_DIR: DATA, USERS_FILE: USERS,
-           SESSION_SECRET: process.env.SESSION_SECRET, ADMIN_PASSWORD: 'pw' },
-    stdio: 'ignore',
+           SESSION_SECRET: process.env.SESSION_SECRET, ADMIN_PASSWORD: TEST_PASS },
+    stdio: ['ignore', 'ignore', 'pipe'],  // pipe stderr so startup errors surface
   });
+  srv.stderr.on('data', d => process.stderr.write('[server] ' + d));
   try {
     // Wait for the server to be ready.
     for (let i = 0; i < 40; i++) {

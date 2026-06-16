@@ -1050,8 +1050,8 @@ socket.on('connect_error', () => {
 // Server disconnects the socket when it detects a revoked token, deleted account,
 // role change, or site reassignment. Clear session and return to login.
 socket.on('reauth_required', ({ reason } = {}) => {
-  sessionStorage.removeItem('klim_token');
-  sessionStorage.removeItem('klim_user');
+  sessionStorage.removeItem('idd_token');
+  sessionStorage.removeItem('idd_user');
   showLogin(reason || 'Session expired — please log in again');
 });
 
