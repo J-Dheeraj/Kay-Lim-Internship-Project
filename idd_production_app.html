@@ -589,6 +589,18 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// esc() only escapes &, <, > (safe for HTML text content) — it does NOT
+// escape quotes, so it is not safe for interpolating into an HTML attribute
+// value. Use escAttr() for data-* attributes that carry dynamic IDs; click
+// handling reads them back via .dataset (a delegated listener — see bottom
+// of this script), never via inline onclick="...", so a value containing a
+// quote or backslash can never break out into new markup or executable JS.
+function escAttr(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 let chStatus, chWeekly, chCumul, chType;
 
@@ -693,7 +705,7 @@ function renderElements(els) {
   tbody.innerHTML = els.map(e => {
     const cp = e.checklistProgress;
     const bar = cp.total ? `<div style="display:flex;align-items:center;gap:6px"><div class="progress-bar-wrap"><div class="progress-bar" style="width:${cp.pct}%"></div></div><span style="font-size:11px;color:var(--muted)">${cp.done}/${cp.total}</span></div>` : '<span style="color:var(--muted);font-size:11px">—</span>';
-    return `<tr class="clickable" data-element-id="${esc(e.id)}" onclick="openElement('${e.id}')">
+    return `<tr class="clickable" data-action="open-element" data-element-id="${escAttr(e.id)}">
       <td><span style="font-family:monospace;font-size:12px;font-weight:600;color:var(--teal-text)">${esc(e.id)}</span></td>
       <td><span class="tag">${esc(e.type)}</span></td>
       <td>${esc(e.block)} · ${esc(e.level)}</td>
@@ -731,13 +743,13 @@ function renderDetail(el) {
     const passActive = item.result === 'pass'  ? 'active' : '';
     const failActive = item.result === 'fail'  ? 'active' : '';
     const naActive   = item.result === 'na'    ? 'active' : '';
-    return `<div class="cl-row" data-id="${item.id}">
-      <span class="cl-code">${item.code}</span>
-      <span class="cl-desc">${item.description}</span>
+    return `<div class="cl-row" data-id="${escAttr(item.id)}">
+      <span class="cl-code">${esc(item.code)}</span>
+      <span class="cl-desc">${esc(item.description)}</span>
       <div class="cl-actions">
-        <button class="cl-btn pass ${passActive}" onclick="setCheckItem('${el.id}','${item.id}','pass')">✓ Pass</button>
-        <button class="cl-btn fail ${failActive}" onclick="setCheckItem('${el.id}','${item.id}','fail')">✗ Fail</button>
-        <button class="cl-btn na ${naActive}"   onclick="setCheckItem('${el.id}','${item.id}','na')">N/A</button>
+        <button class="cl-btn pass ${passActive}" data-action="set-check" data-id="${escAttr(el.id)}" data-id2="${escAttr(item.id)}" data-value="pass">✓ Pass</button>
+        <button class="cl-btn fail ${failActive}" data-action="set-check" data-id="${escAttr(el.id)}" data-id2="${escAttr(item.id)}" data-value="fail">✗ Fail</button>
+        <button class="cl-btn na ${naActive}"   data-action="set-check" data-id="${escAttr(el.id)}" data-id2="${escAttr(item.id)}" data-value="na">N/A</button>
       </div>
       ${item.checkedBy ? `<span class="cl-result ${item.result||''}">${esc((item.result||'').toUpperCase())} · ${esc(item.checkedBy)}</span>` : ''}
     </div>`;
@@ -754,7 +766,7 @@ function renderDetail(el) {
       ${n.location ? `<div class="ncr-meta">📍 ${esc(n.location)}</div>` : ''}
       <div class="ncr-meta" style="margin-top:4px">Raised by ${esc(n.raisedBy)} · ${new Date(n.raisedAt).toLocaleDateString('en-SG')}</div>
       ${n.correctiveAction ? `<div style="font-size:13px;color:var(--green);margin-top:8px">✓ Corrective action: ${esc(n.correctiveAction)}</div>` : ''}
-      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="openCloseNCR('${n.id}')">Close NCR</button></div>` : ''}
+      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" data-action="open-close-ncr" data-id="${escAttr(n.id)}">Close NCR</button></div>` : ''}
     </div>`).join('') : '<div style="color:var(--muted);font-size:13px;padding:8px 0">No NCRs raised for this element.</div>';
 
   const cp = el.checklist.filter(i => i.result !== null).length;
@@ -771,9 +783,9 @@ function renderDetail(el) {
         <span>Weight: <strong>${esc(el.weight)}</strong></span>
       </div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="openStatusModal('${el.id}','${el.status}')">Update Status</button>
-        <button class="btn btn-danger btn-sm" onclick="openNCRModal('${el.id}')">⚠ Raise NCR</button>
-        <button class="btn btn-secondary btn-sm" onclick="showQRFor('${el.id}')">⬛ Show QR</button>
+        <button class="btn btn-primary btn-sm" data-action="open-status-modal" data-id="${escAttr(el.id)}" data-value="${escAttr(el.status)}">Update Status</button>
+        <button class="btn btn-danger btn-sm" data-action="open-ncr-modal" data-id="${escAttr(el.id)}">⚠ Raise NCR</button>
+        <button class="btn btn-secondary btn-sm" data-action="show-qr" data-id="${escAttr(el.id)}">⬛ Show QR</button>
       </div>
     </div>
 
@@ -787,7 +799,7 @@ function renderDetail(el) {
       <div style="font-size:12px;color:var(--muted)">${cp}/${el.checklist.length} checked · ${pct}%</div>
     </div>
     <div class="checklist">${rows}</div>
-    <div style="margin-bottom:8px"><button class="btn btn-primary btn-sm" onclick="submitChecklist('${el.id}')">Save Inspection</button></div>
+    <div style="margin-bottom:8px"><button class="btn btn-primary btn-sm" data-action="submit-checklist" data-id="${escAttr(el.id)}">Save Inspection</button></div>
 
     <div class="divider"></div>
     <div class="section-title">Non-Conformance Reports</div>
@@ -912,11 +924,11 @@ async function renderNCRs() {
         <span class="ncr-no">${esc(n.ncrNo)}</span>
         <span class="s-badge ${n.status==='closed'?'s-qc_passed':'s-ncr_open'}">${esc(n.status.replace('_',' '))}</span>
         <span class="sev-${n.severity}">${esc(n.severity.toUpperCase())}</span>
-        <span style="margin-left:auto;font-size:12px;cursor:pointer;color:var(--teal-text)" onclick="openElement('${n.elementId}')">→ ${esc(n.elementId)}</span>
+        <span style="margin-left:auto;font-size:12px;cursor:pointer;color:var(--teal-text)" data-action="open-element" data-id="${escAttr(n.elementId)}">→ ${esc(n.elementId)}</span>
       </div>
       <div class="ncr-body">${esc(n.description)}</div>
       <div class="ncr-meta">📍 ${esc(n.location||'—')} · Raised by ${esc(n.raisedBy)} · ${new Date(n.raisedAt).toLocaleDateString('en-SG')}</div>
-      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" onclick="openCloseNCR('${n.id}')">Close NCR</button></div>` : `<div style="font-size:13px;color:var(--green);margin-top:8px">✓ ${esc(n.correctiveAction)}</div>`}
+      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" data-action="open-close-ncr" data-id="${escAttr(n.id)}">Close NCR</button></div>` : `<div style="font-size:13px;color:var(--green);margin-top:8px">✓ ${esc(n.correctiveAction)}</div>`}
     </div>`).join('');
 }
 
@@ -1113,6 +1125,27 @@ socket.on('ncr:updated', ({ ncrNo, status, elementId }) => {
 // dashboard:refresh
 socket.on('dashboard:refresh', function() {
   if (document.getElementById('tab-dashboard').classList.contains('active')) loadDashboard();
+});
+
+// ─── Delegated click handling (no inline onclick for dynamic data) ───────────
+// Dynamic IDs (element/NCR/checklist-item ids) are rendered as data-*
+// attributes (escAttr()'d) instead of being concatenated into onclick="..."
+// strings. A single listener here reads them back via .dataset and calls the
+// real handler — so even an id containing a quote or backslash can never
+// break out of an attribute into new markup or executable script.
+document.body.addEventListener('click', e => {
+  const t = e.target.closest('[data-action]');
+  if (!t) return;
+  const id = t.dataset.id ?? t.dataset.elementId, id2 = t.dataset.id2, value = t.dataset.value;
+  switch (t.dataset.action) {
+    case 'open-element':       openElement(id); break;
+    case 'set-check':          setCheckItem(id, id2, value); break;
+    case 'open-close-ncr':     openCloseNCR(id); break;
+    case 'open-status-modal':  openStatusModal(id, value); break;
+    case 'open-ncr-modal':     openNCRModal(id); break;
+    case 'show-qr':            showQRFor(id); break;
+    case 'submit-checklist':   submitChecklist(id); break;
+  }
 });
 </script>
 </body>

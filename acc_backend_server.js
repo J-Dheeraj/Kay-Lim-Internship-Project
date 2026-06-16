@@ -55,6 +55,13 @@ if (STRICT_INTEGRATIONS && PBI_CONFIGURED && PBI_ALLOWED.size === 0) {
 }
 
 const app = express();
+// Deployment topology (see DEPLOY.md) is always exactly one reverse proxy
+// (Caddy) in front of this service. Trusting exactly one hop — not an
+// unbounded chain — is Express's documented setting for that topology: it
+// makes req.ip and express-rate-limit's per-IP buckets reflect the real
+// client (read from X-Forwarded-For) rather than Caddy's container address,
+// without letting a client past Caddy spoof additional forwarded hops.
+app.set('trust proxy', 1);
 const ALLOWED = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001').split(',');
 app.use(cors({ origin: (o, cb) => (!o || ALLOWED.includes(o)) ? cb(null, true) : cb(new Error('CORS blocked: ' + o)) }));
 app.use(express.json());

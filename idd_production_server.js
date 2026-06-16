@@ -42,6 +42,13 @@ const DB_FILE        = process.env.IDD_DB_FILE || path.join(process.env.DATA_DIR
 
 // ─── Express + Socket.io setup ───────────────────────────────────────────────
 const app = express();
+// Deployment topology (see DEPLOY.md) is always exactly one reverse proxy
+// (Caddy) in front of this service. Trusting exactly one hop — not an
+// unbounded chain — is Express's documented setting for that topology: it
+// makes req.ip and express-rate-limit's per-IP buckets reflect the real
+// client (read from X-Forwarded-For) rather than Caddy's container address,
+// without letting a client past Caddy spoof additional forwarded hops.
+app.set('trust proxy', 1);
 const { server: httpServer, tls } = makeServer(app);
 const io         = new SocketIO(httpServer, {
   cors: { origin: ALLOWED_ORIGIN, methods: ['GET','POST','PATCH','DELETE'] }
@@ -506,8 +513,11 @@ app.get('/api/production/ncrs', requireAuth, (req, res) => {
 
 // ─── Reset to seed (dev utility — admin only) ────────────────────────────────
 app.post('/api/production/reset', requireAdmin, mutationLimiter, (req, res) => {
-  // Back up current data (exported from SQLite) before wiping
-  const backup = path.join(__dirname, `idd_data_backup_${Date.now()}.json`);
+  // Back up current data (exported from SQLite) before wiping. Written under
+  // DATA_DIR (the mounted volume) — __dirname is /app in the container, which
+  // is not writable by the unprivileged `node` user the entrypoint drops to
+  // (only /data is chowned), so a backup there would fail with EACCES.
+  const backup = path.join(process.env.DATA_DIR || __dirname, `idd_data_backup_${Date.now()}.json`);
   fs.writeFileSync(backup, JSON.stringify(store.exportAll(), null, 2));
   // Reset and its audit record commit in one transaction (see store.seed).
   seedDB({ ...auditMeta(req), action: 'db.reset', details: { backup: path.basename(backup) } });
