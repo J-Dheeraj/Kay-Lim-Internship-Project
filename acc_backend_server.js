@@ -100,12 +100,24 @@ app.use(['/api/powerbi-embed', '/api/powerbi-reports', '/api/rfis', '/api/defect
 
 const PORT = process.env.PORT || 3001;
 
-// fetch with timeout — a hung vendor API can no longer stall requests indefinitely
-async function fetchT(url, opts = {}, ms = 15000) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), ms);
-  try { return await fetch(url, { ...opts, signal: ctl.signal }); }
-  finally { clearTimeout(t); }
+// fetch with timeout — a hung vendor API can no longer stall requests indefinitely.
+// Also retries on HTTP 429 (rate-limited), honouring the vendor's Retry-After
+// header when present — Power BI and most REST APIs throttle per-user, so a
+// brief burst of concurrent dashboard loads can hit this in normal use, not
+// just under attack. Caps wait + retries so a misbehaving vendor still can't
+// stall a request indefinitely.
+async function fetchT(url, opts = {}, ms = 15000, retries = 2) {
+  for (let attempt = 0; ; attempt++) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), ms);
+    let res;
+    try { res = await fetch(url, { ...opts, signal: ctl.signal }); }
+    finally { clearTimeout(t); }
+    if (res.status !== 429 || attempt >= retries) return res;
+    const retryAfterSec = Number(res.headers.get('retry-after'));
+    const waitMs = Math.min((Number.isFinite(retryAfterSec) ? retryAfterSec * 1000 : 1000 * 2 ** attempt), 10000);
+    await new Promise(r => setTimeout(r, waitMs));
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
