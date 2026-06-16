@@ -35,6 +35,25 @@ const PBI_ALLOWED = new Set(
   (process.env.POWERBI_ALLOWED_REPORTS || '')
     .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 );
+
+// Strict integration mode: 1 = a configured-but-failing vendor returns 502
+// instead of mock (see liveOrMock below), so production never shows demo
+// data as real. Hoisted here (rather than declared inline near liveOrMock)
+// so it's available for the Power BI startup guard immediately below.
+const STRICT_INTEGRATIONS = /^(1|true|strict|on)$/i.test(process.env.INTEGRATIONS_STRICT || '');
+
+// In strict production mode, refuse to start if Power BI is configured
+// (service-principal credentials present) but no report allowlist is set —
+// silently shipping with an empty allowlist would mean any authenticated
+// user can embed any report in the workspace.
+const PBI_CONFIGURED = !!(process.env.PBI_WORKSPACE_ID && process.env.PBI_TENANT_ID &&
+                           process.env.PBI_CLIENT_ID && process.env.PBI_CLIENT_SECRET);
+if (STRICT_INTEGRATIONS && PBI_CONFIGURED && PBI_ALLOWED.size === 0) {
+  console.error('\n  ✖ Refusing to start — Power BI is configured but POWERBI_ALLOWED_REPORTS is empty.' +
+    '\n    Set POWERBI_ALLOWED_REPORTS in .env to the report UUID(s) this deployment may embed.\n');
+  process.exit(1);
+}
+
 const app = express();
 const ALLOWED = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001').split(',');
 app.use(cors({ origin: (o, cb) => (!o || ALLOWED.includes(o)) ? cb(null, true) : cb(new Error('CORS blocked: ' + o)) }));
@@ -163,7 +182,8 @@ function mock(data, integrationError) {
 // never presented as live — it carries `_integrationError`. In strict mode
 // (INTEGRATIONS_STRICT=1) a configured-but-failing integration returns 502
 // instead of mock, so a production deployment never shows demo data as real.
-const STRICT_INTEGRATIONS = /^(1|true|strict|on)$/i.test(process.env.INTEGRATIONS_STRICT || '');
+// (STRICT_INTEGRATIONS is declared earlier, near PBI_ALLOWED, so the Power BI
+// startup guard can use it before this point in the file.)
 async function liveOrMock(res, label, configured, fetchLive, mockData) {
   if (configured) {
     try {
