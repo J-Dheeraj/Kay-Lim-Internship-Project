@@ -10,7 +10,9 @@ FROM node:22.14-bookworm-slim
 
 # gosu lets the entrypoint fix volume ownership as root, then drop to an
 # unprivileged user to actually run the app (containers do not run as root).
-RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
