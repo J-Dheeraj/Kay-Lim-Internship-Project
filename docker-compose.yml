@@ -5,7 +5,7 @@
 #   https://idd.${DOMAIN}                             -> IDD Production  (idd :3002)
 #
 # Both services SHARE identity: the same SESSION_SECRET (env) and the same
-# users.json / .revoked.json on the shared `state` volume, so a token or a
+# users.json / revocations.db on the shared `state` volume, so a token or a
 # revocation is valid on either service. Each service keeps its own SQLite DB
 # (acc.db / idd.db) on that same volume.
 #

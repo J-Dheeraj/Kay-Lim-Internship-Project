@@ -35,14 +35,23 @@ const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 // SQLite WAL mode allows concurrent readers + one writer without any file-level
 // locking. revokeToken() and isRevoked() are individually atomic — no race
 // window is possible (replaces the previous append-only NDJSON approach).
-const _revokedDb = new Database(path.join(DATA_DIR, 'revocations.db'));
-_revokedDb.pragma('journal_mode = WAL');
-_revokedDb.exec(`
-  CREATE TABLE IF NOT EXISTS revocations (jti TEXT PRIMARY KEY, exp INTEGER NOT NULL);
-  CREATE INDEX IF NOT EXISTS idx_rev_exp ON revocations(exp);
-`);
-const _revokeStmt  = _revokedDb.prepare('INSERT OR REPLACE INTO revocations (jti, exp) VALUES (?,?)');
-const _isRevokedSt = _revokedDb.prepare('SELECT 1 FROM revocations WHERE jti=?');
+// Lazily opened on first use (not at module load) so merely importing auth.js
+// — e.g. a script that only needs hashPassword() — doesn't have the side
+// effect of creating a revocations.db file on disk.
+let _revokedDb, _revokeStmt, _isRevokedSt;
+function revokedDb() {
+  if (!_revokedDb) {
+    _revokedDb = new Database(path.join(DATA_DIR, 'revocations.db'));
+    _revokedDb.pragma('journal_mode = WAL');
+    _revokedDb.exec(`
+      CREATE TABLE IF NOT EXISTS revocations (jti TEXT PRIMARY KEY, exp INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_rev_exp ON revocations(exp);
+    `);
+    _revokeStmt  = _revokedDb.prepare('INSERT OR REPLACE INTO revocations (jti, exp) VALUES (?,?)');
+    _isRevokedSt = _revokedDb.prepare('SELECT 1 FROM revocations WHERE jti=?');
+  }
+  return _revokedDb;
+}
 
 // ─── Session secret ───────────────────────────────────────────────────────────
 function loadSecret() {
@@ -75,11 +84,14 @@ export function assertSecureConfig() {
 
 // ─── Token revocation helpers ─────────────────────────────────────────────────
 function isRevoked(jti) {
-  return jti ? !!_isRevokedSt.get(jti) : false;
+  if (!jti) return false;
+  revokedDb();
+  return !!_isRevokedSt.get(jti);
 }
 export function revokeToken(token) {
   const data = decodeToken(token);
   if (!data?.jti) return false;
+  revokedDb();
   _revokeStmt.run(data.jti, data.exp);
   return true;
 }
@@ -294,7 +306,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   } else if (cmd === 'compact-revoked') {
     // Remove expired entries from the revocations SQLite DB.
     // SQLite handles concurrent access atomically — no race window.
-    const { changes } = _revokedDb.prepare('DELETE FROM revocations WHERE exp < ?').run(Date.now());
+    const { changes } = revokedDb().prepare('DELETE FROM revocations WHERE exp < ?').run(Date.now());
     console.log(`Compacted: removed ${changes} expired entries.`);
   } else {
     console.log(`Usage:\n  node auth.js add-user <username> <password> [${ROLES.join('|')}] [site]\n  node auth.js remove-user <username>\n  node auth.js list-users\n  node auth.js compact-revoked`);

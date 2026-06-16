@@ -8,12 +8,12 @@ auto-provisions HTTPS for your domain. Suitable for a controlled pilot.
  supervisor DNS  │  Caddy :80/:443  ── auto Let's Encrypt TLS, HSTS, HTTP→HTTPS, wss      │
  A/AAAA records ─┼─▶ ${DOMAIN}, cc.${DOMAIN}  ─▶ acc  :3001  (Command Centre + /api)       │
                  │   idd.${DOMAIN}            ─▶ idd  :3002  (IDD Production app + /api)    │
-                 │  shared `state` volume: users.json, .revoked.json, acc.db, idd.db       │
+                 │  shared `state` volume: users.json, revocations.db, acc.db, idd.db      │
                  └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 Both services share identity via the same `SESSION_SECRET` and the same
-`users.json`/`.revoked.json` on the `state` volume, so a login or a logout is
+`users.json`/`revocations.db` on the `state` volume, so a login or a logout is
 valid on either service.
 
 ## 1. Host options (you said host is not decided)
@@ -120,7 +120,7 @@ See the README for the role/permission matrix.
 ## 5. Backup & restore
 
 All durable state is on the **`klim_state`** volume (`users.json`,
-`.revoked.json`, `acc.db`, `idd.db`). The Compose project is named `klim`
+`revocations.db` + `-wal`/`-shm`, `acc.db`, `idd.db`). The Compose project is named `klim`
 (`name: klim`), so the volume is always `klim_state`.
 
 SQLite is in WAL mode, so a plain copy of `*.db` while a service is writing can

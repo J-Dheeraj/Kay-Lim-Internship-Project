@@ -103,7 +103,15 @@ test('revoked token is rejected after logout', () => {
   assert.equal(verifyToken(token), null);              // rejected after revoke
   // A different (non-revoked) token still works
   assert.equal(verifyToken(signToken('grace', 'user')).username, 'grace');
-  fs.rmSync(new URL('../.revoked.json', import.meta.url), { force: true });
+});
+
+// This test file doesn't set DATA_DIR, so auth.js's revocations.db (created
+// above by revokeToken()) lands in the project root by default. Clean it up
+// on exit so repeated local test runs don't leave stray SQLite files behind.
+process.on('exit', () => {
+  for (const f of ['revocations.db', 'revocations.db-wal', 'revocations.db-shm']) {
+    try { fs.rmSync(new URL('../' + f, import.meta.url), { force: true }); } catch {}
+  }
 });
 
 test('authenticate rejects a valid token whose account no longer exists', () => {
