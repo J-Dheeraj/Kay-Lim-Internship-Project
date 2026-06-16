@@ -86,6 +86,20 @@ tr:last-child td{border-bottom:none}
 .info-cell{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem}
 .ik{font-size:.69rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .iv{font-size:.87rem;font-weight:600;margin-top:.15rem}
+/* ── Table search ── */
+.tbl-controls{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;padding:.6rem .9rem;border-bottom:1px solid var(--border);background:#fafbfc}
+.tbl-search{flex:1;min-width:160px;max-width:280px;padding:.42rem .65rem;border:1px solid var(--border);border-radius:7px;font-size:.8rem;font-family:inherit;outline:none;color:var(--text)}
+.tbl-search:focus{border-color:var(--blue)}
+/* ── Login form ── */
+.login-card{background:var(--sidebar);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:2rem;width:330px;box-shadow:0 16px 48px rgba(0,0,0,.5)}
+.login-card h2{margin:0 0 .2rem;font-size:1rem;font-weight:700;color:#fff}
+.login-card p{margin:0 0 1.25rem;font-size:.8rem;color:rgba(255,255,255,.45)}
+.login-field{width:100%;box-sizing:border-box;margin-bottom:.55rem;padding:.55rem .7rem;border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:.88rem;background:rgba(255,255,255,.07);color:#fff;outline:none;font-family:inherit}
+.login-field:focus{border-color:rgba(99,179,237,.7)}
+.login-field::placeholder{color:rgba(255,255,255,.3)}
+.login-err{color:#fca5a5;font-size:.78rem;min-height:1.1rem;margin-bottom:.45rem}
+.login-btn{width:100%;padding:.6rem;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:.9rem;cursor:pointer;font-weight:600;font-family:inherit}
+.login-btn:hover{background:#1d4ed8}
 </style>
 </head>
 <body>
@@ -246,6 +260,7 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> RFI Log</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
+  <div class="tbl-controls"><input class="tbl-search" id="rfi-search" placeholder="Search RFIs…" oninput="filterTable('rfi-table','rfi-search')"></div>
   <table id="rfi-table">
     <thead><tr><th>ID</th><th>Subject</th><th>Discipline</th><th>Raised By</th><th>Assigned To</th><th>Status</th><th>Due Date</th><th>Age</th></tr></thead>
     <tbody>
@@ -276,6 +291,7 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Defect Register</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
+  <div class="tbl-controls"><input class="tbl-search" id="def-search" placeholder="Search defects…" oninput="filterTable('def-table','def-search')"></div>
   <table id="def-table">
     <thead><tr><th>ID</th><th>Description</th><th>Location</th><th>Type</th><th>Severity</th><th>Assigned</th><th>Status</th><th>Age</th></tr></thead>
     <tbody>
@@ -334,7 +350,8 @@ tr:last-child td{border-bottom:none}
     <div class="mc"><div class="ml">Approval Rate</div><div class="mv" style="color:var(--green)" id="sub-rate">79%</div></div>
   </div>
   <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Submittal Register</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
-  <table><thead><tr><th>ID</th><th>Title</th><th>Spec Section</th><th>Submitted By</th><th>Reviewer</th><th>Status</th><th>Due Date</th></tr></thead>
+  <div class="tbl-controls"><input class="tbl-search" id="sub-search" placeholder="Search submittals…" oninput="filterTable('sub-table','sub-search')"></div>
+  <table id="sub-table"><thead><tr><th>ID</th><th>Title</th><th>Spec Section</th><th>Submitted By</th><th>Reviewer</th><th>Status</th><th>Due Date</th></tr></thead>
   <tbody>
     <tr><td class="mono">SUB-038</td><td>Waterproofing membrane — bathrooms</td><td>07 10 00</td><td>Rajan S</td><td>Tan WH</td><td><span class="pill" style="background:#faeeda;color:#854f0b">pending</span></td><td>2026-06-13</td></tr>
     <tr><td class="mono">SUB-037</td><td>Rebar shop drawing — L8 slab</td><td>03 20 00</td><td>Ahmad K</td><td>PE Lee</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">overdue</span></td><td>2026-06-04</td></tr>
@@ -770,16 +787,14 @@ tr:last-child td{border-bottom:none}
 </main>
 
 <!-- Login overlay — backend API requires a per-user session token -->
-<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:1000;align-items:center;justify-content:center">
-  <form onsubmit="doLogin(event)" style="background:#fff;border-radius:12px;padding:2rem;width:320px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
-    <h2 style="margin:0 0 .25rem;font-size:1.1rem">Kay Lim Construction Dashboard</h2>
-    <p style="margin:0 0 1.25rem;font-size:.82rem;color:#6b7280">Sign in to load live data</p>
-    <input id="login-user" placeholder="Username" autocomplete="username" required
-           style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.55rem .7rem;border:1px solid #d1d5db;border-radius:8px;font-size:.9rem">
-    <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password" required
-           style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.55rem .7rem;border:1px solid #d1d5db;border-radius:8px;font-size:.9rem">
-    <div id="login-error" style="color:#dc2626;font-size:.8rem;min-height:1.1rem;margin-bottom:.5rem"></div>
-    <button type="submit" style="width:100%;padding:.6rem;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:.92rem;cursor:pointer">Sign in</button>
+<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.88);z-index:1000;align-items:center;justify-content:center">
+  <form onsubmit="doLogin(event)" class="login-card">
+    <h2>Kay Lim Construction Dashboard</h2>
+    <p>Sign in to load live data</p>
+    <input id="login-user" class="login-field" placeholder="Username" autocomplete="username" required>
+    <input id="login-pass" class="login-field" type="password" placeholder="Password" autocomplete="current-password" required>
+    <div id="login-error" class="login-err"></div>
+    <button type="submit" class="login-btn">Sign in</button>
   </form>
 </div>
 
@@ -1135,6 +1150,15 @@ async function loadAll(){
   }
 }
 loadAll();
+
+/* ── Table search ── */
+function filterTable(tableId, inputId) {
+  const q = document.getElementById(inputId).value.toLowerCase();
+  const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
+  rows.forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
 
 /* ── Mobile sidebar toggle ── */
 function toggleSidebar(){
