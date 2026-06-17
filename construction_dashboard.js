@@ -424,3 +424,12 @@ document.body.addEventListener('click', e => {
   else if (action === 'toggle-sidebar') toggleSidebar();
   else if (action === 'logout')         { e.preventDefault(); logout(); }
 });
+
+/* ── Static event listeners (replaced inline onsubmit / oninput / onchange) ── */
+document.querySelector('.login-card').addEventListener('submit', doLogin);
+const _el = id => document.getElementById(id);
+const _on = (id, ev, fn) => { const e = _el(id); if (e) e.addEventListener(ev, fn); };
+_on('rfi-search',       'input',  () => filterTable('rfi-table', 'rfi-search'));
+_on('def-search',       'input',  () => filterTable('def-table', 'def-search'));
+_on('sub-search',       'input',  () => filterTable('sub-table', 'sub-search'));
+_on('pbi-report-select','change', function() { loadPbiReport(this.value); });

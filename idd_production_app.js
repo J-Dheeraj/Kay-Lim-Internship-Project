@@ -663,3 +663,12 @@ document.body.addEventListener('click', e => {
     case 'nav-elements-specific': nav('elements', document.querySelector('.nav-item:nth-child(5)')); break;
   }
 });
+
+/* ── Static event listeners (replaced inline onsubmit / oninput / onchange) ── */
+document.querySelector('.login-card').addEventListener('submit', doLogin);
+const _on = (id, ev, fn) => { const e = document.getElementById(id); if (e) e.addEventListener(ev, fn); };
+_on('el-search',  'input',  filterElements);
+_on('el-status',  'change', filterElements);
+_on('el-block',   'change', filterElements);
+_on('ncr-filter', 'change', renderNCRs);
+_on('qr-block',   'change', renderQRCodes);

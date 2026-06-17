@@ -290,8 +290,8 @@ select.flt:focus{border-color:var(--teal)}
   <div class="ph">
     <div class="ph-left"><div class="pt">Element Register</div><div class="ps">All precast / PPVC elements · Click to inspect</div></div>
     <div class="controls">
-      <input class="search" id="el-search" placeholder="Search ID or batch…" oninput="filterElements()"/>
-      <select class="flt" id="el-status" onchange="filterElements()">
+      <input class="search" id="el-search" placeholder="Search ID or batch…"/>
+      <select class="flt" id="el-status">
         <option value="">All Status</option>
         <option value="not_started">Not Started</option>
         <option value="in_production">In Production</option>
@@ -301,7 +301,7 @@ select.flt:focus{border-color:var(--teal)}
         <option value="ready_delivery">Ready for Delivery</option>
         <option value="delivered">Delivered</option>
       </select>
-      <select class="flt" id="el-block" onchange="filterElements()">
+      <select class="flt" id="el-block">
         <option value="">All Blocks</option>
         <option>Blk 301A</option><option>Blk 301B</option><option>Blk 302</option>
       </select>
@@ -332,7 +332,7 @@ select.flt:focus{border-color:var(--teal)}
   <div class="ph">
     <div class="ph-left"><div class="pt">NCR Register</div><div class="ps">Non-Conformance Reports · Factory quality issues</div></div>
     <div class="controls">
-      <select class="flt" id="ncr-filter" onchange="renderNCRs()">
+      <select class="flt" id="ncr-filter">
         <option value="">All NCRs</option>
         <option value="open">Open</option>
         <option value="in_progress">In Progress</option>
@@ -377,7 +377,7 @@ select.flt:focus{border-color:var(--teal)}
   <div class="ph">
     <div class="ph-left"><div class="pt">QR Code Sheet</div><div class="ps">Print and affix to precast elements at factory</div></div>
     <div class="controls">
-      <select class="flt" id="qr-block" onchange="renderQRCodes()">
+      <select class="flt" id="qr-block">
         <option value="Blk 301A">Blk 301A</option><option value="Blk 301B">Blk 301B</option><option value="Blk 302">Blk 302</option>
       </select>
       <button class="btn btn-secondary btn-sm" data-action="print">
@@ -483,7 +483,7 @@ select.flt:focus{border-color:var(--teal)}
 
 <!-- Login overlay — shown until a valid session token exists -->
 <div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.9);z-index:1000;align-items:center;justify-content:center">
-  <form onsubmit="doLogin(event)" class="login-card">
+  <form class="login-card">
     <h2>IDD Digital Production</h2>
     <p>Sign in to continue</p>
     <input id="login-user" class="login-field" placeholder="Username" autocomplete="username" required>
@@ -500,3 +500,4 @@ select.flt:focus{border-color:var(--teal)}
 </script>
 </body>
 </html>
+

@@ -260,7 +260,7 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> RFI Log</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
-  <div class="tbl-controls"><input class="tbl-search" id="rfi-search" placeholder="Search RFIs…" oninput="filterTable('rfi-table','rfi-search')"></div>
+  <div class="tbl-controls"><input class="tbl-search" id="rfi-search" placeholder="Search RFIs…"></div>
   <table id="rfi-table">
     <thead><tr><th>ID</th><th>Subject</th><th>Discipline</th><th>Raised By</th><th>Assigned To</th><th>Status</th><th>Due Date</th><th>Age</th></tr></thead>
     <tbody>
@@ -291,7 +291,7 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Defect Register</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
-  <div class="tbl-controls"><input class="tbl-search" id="def-search" placeholder="Search defects…" oninput="filterTable('def-table','def-search')"></div>
+  <div class="tbl-controls"><input class="tbl-search" id="def-search" placeholder="Search defects…"></div>
   <table id="def-table">
     <thead><tr><th>ID</th><th>Description</th><th>Location</th><th>Type</th><th>Severity</th><th>Assigned</th><th>Status</th><th>Age</th></tr></thead>
     <tbody>
@@ -350,7 +350,7 @@ tr:last-child td{border-bottom:none}
     <div class="mc"><div class="ml">Approval Rate</div><div class="mv" style="color:var(--green)" id="sub-rate">79%</div></div>
   </div>
   <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Submittal Register</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
-  <div class="tbl-controls"><input class="tbl-search" id="sub-search" placeholder="Search submittals…" oninput="filterTable('sub-table','sub-search')"></div>
+  <div class="tbl-controls"><input class="tbl-search" id="sub-search" placeholder="Search submittals…"></div>
   <table id="sub-table"><thead><tr><th>ID</th><th>Title</th><th>Spec Section</th><th>Submitted By</th><th>Reviewer</th><th>Status</th><th>Due Date</th></tr></thead>
   <tbody>
     <tr><td class="mono">SUB-038</td><td>Waterproofing membrane — bathrooms</td><td>07 10 00</td><td>Rajan S</td><td>Tan WH</td><td><span class="pill" style="background:#faeeda;color:#854f0b">pending</span></td><td>2026-06-13</td></tr>
@@ -703,7 +703,7 @@ tr:last-child td{border-bottom:none}
   <div class="ph"><div><div class="pt">Power BI Reports</div><div class="ps">Embedded from your Power BI workspace</div></div><span class="src-pill pill-pbi">● Power BI</span></div>
   <div id="pbi-report-list" style="display:none;margin-bottom:1rem">
     <label style="font-size:.85rem;font-weight:500;margin-right:.5rem">Report:</label>
-    <select id="pbi-report-select" onchange="loadPbiReport(this.value)" style="font-size:.85rem;padding:.3rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card)"></select>
+    <select id="pbi-report-select" style="font-size:.85rem;padding:.3rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card)"></select>
   </div>
   <div id="pbi-embed-container" style="width:100%;height:calc(100vh - 220px);min-height:480px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:#fff;display:none"></div>
   <div id="pbi-setup-guide" class="card" style="padding:1.6rem 2rem;max-width:640px">
@@ -788,7 +788,7 @@ tr:last-child td{border-bottom:none}
 
 <!-- Login overlay — backend API requires a per-user session token -->
 <div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.88);z-index:1000;align-items:center;justify-content:center">
-  <form onsubmit="doLogin(event)" class="login-card">
+  <form class="login-card">
     <h2>Kay Lim Construction Dashboard</h2>
     <p>Sign in to load live data</p>
     <input id="login-user" class="login-field" placeholder="Username" autocomplete="username" required>
@@ -801,3 +801,4 @@ tr:last-child td{border-bottom:none}
 <script src="/construction_dashboard.js"></script>
 </body>
 </html>
+
