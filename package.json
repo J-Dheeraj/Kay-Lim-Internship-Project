@@ -12,7 +12,7 @@
     "dev": "node --watch acc_backend_server.js",
     "start:idd": "node idd_production_server.js",
     "dev:idd": "node --watch idd_production_server.js",
-    "test": "node --test --test-concurrency=1 'test/*.test.js'",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
     "smoke": "playwright test"
   },
   "dependencies": {
