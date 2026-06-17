@@ -103,6 +103,7 @@ app.post('/api/logout', logoutHandler);   // behind the gate above (requires a v
 // Serve the Command Centre dashboard at the root so it can be deployed behind a
 // single origin (the browser then calls /api/* same-origin — no exposed :3001).
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.html')));
+app.get('/construction_dashboard.js', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.js')));
 
 // Rate limit the token-generating + vendor-proxy endpoints (per security review)
 const proxyLimiter = rateLimit({

@@ -104,6 +104,7 @@ app.post('/api/logout', requireAuth, logoutHandler);
 app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, 'idd_production_app.html'));
 });
+app.get('/idd_production_app.js', (_req, res) => res.sendFile(path.join(__dirname, 'idd_production_app.js')));
 // Static assets — block data files, secrets & backups (would leak the QC/NCR DB)
 app.use((req, res, next) => {
   if (/\.(json|env|log|tmp|db)(-wal|-shm)?$/i.test(req.path) || /session_secret|users|revoked/i.test(req.path)) return res.status(404).end();
