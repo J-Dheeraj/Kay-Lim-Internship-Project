@@ -66,6 +66,14 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options',               'DENY');
   res.setHeader('X-XSS-Protection',              '1; mode=block');
   res.setHeader('Referrer-Policy',               'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' https://cdnjs.cloudflare.com https://unpkg.com; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "connect-src 'self' ws: wss:; " +
+    "img-src 'self' data:; " +
+    "worker-src blob:;"
+  );
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });

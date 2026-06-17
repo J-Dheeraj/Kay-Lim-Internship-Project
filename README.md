@@ -65,7 +65,7 @@ npm run start:idd           # serves the app + API on :3002
 ## Security notes
 - Vendor API keys live server-side in `.env` only — never sent to the browser.
 - All `/api` routes require a valid token (except health and login); Socket.io connections are authenticated too.
-- IDD mutations are recorded in a hash-chained, append-only audit log (`idd_audit.log`).
+- IDD mutations are recorded in a hash-chained SQLite audit table (verified via `GET /api/production/audit/verify`).
 - User-supplied text is HTML-escaped before rendering; CORS is locked to allowlisted origins.
 - TLS: set `TLS_KEY_FILE`/`TLS_CERT_FILE` to serve HTTPS directly, or terminate TLS at a reverse proxy.
 - `npm test` runs the auth unit tests.
