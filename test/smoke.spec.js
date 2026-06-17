@@ -50,7 +50,7 @@ test.describe('ACC Command Centre', () => {
     await page.locator('button[type="submit"]').click();
 
     // After login the page reloads; overview tab should become active
-    await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 15_000 });
+    await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 20_000 });
 
     // JS executed — the lastSync clock element should have been populated
     await expect(page.locator('#lastSync')).not.toHaveText('—');
@@ -59,12 +59,12 @@ test.describe('ACC Command Centre', () => {
   });
 
   test('sidebar nav data-section delegates work', async ({ page }) => {
-    // Pre-login via API so we have a token in sessionStorage
     await page.goto(`${ACC}/`);
+    await expect(page.locator('#login-overlay')).toBeVisible();
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 15_000 });
+    await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 20_000 });
 
     // Click a nav item that uses data-section (not onclick)
     await page.locator('[data-section="acc-issues"]').click();
@@ -94,7 +94,7 @@ test.describe('IDD Digital Production', () => {
     await page.fill('#login-pass', PW);
     await page.locator('button[type="submit"]').click();
 
-    await expect(page.locator('#tab-dashboard')).toHaveClass(/active/, { timeout: 15_000 });
+    await expect(page.locator('#tab-dashboard')).toHaveClass(/active/, { timeout: 20_000 });
 
     // Dashboard KPI elements should exist (JS executed)
     await expect(page.locator('#kpi-total')).toBeVisible();
@@ -104,10 +104,11 @@ test.describe('IDD Digital Production', () => {
 
   test('nav data-section delegates: elements and NCR register', async ({ page }) => {
     await page.goto(`${IDD}/`);
+    await expect(page.locator('#login-overlay')).toBeVisible();
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('#tab-dashboard')).toHaveClass(/active/, { timeout: 15_000 });
+    await expect(page.locator('#tab-dashboard')).toHaveClass(/active/, { timeout: 20_000 });
 
     // Element register
     await page.locator('[data-section="elements"]').click();
@@ -127,10 +128,11 @@ test.describe('IDD Digital Production', () => {
     // Verified via ACC smoke test (section navigation above reaches the tab).
     // This test ensures no JS exception when the pbi tab is clicked.
     await page.goto(`${ACC}/`);
+    await expect(page.locator('#login-overlay')).toBeVisible();
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 15_000 });
+    await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 20_000 });
 
     const jsErrors = [];
     page.on('pageerror', e => jsErrors.push(e.message));

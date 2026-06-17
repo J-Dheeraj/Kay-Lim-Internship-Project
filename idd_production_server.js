@@ -68,7 +68,7 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy',               'strict-origin-when-cross-origin');
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' https://cdnjs.cloudflare.com https://unpkg.com; " +
+    "script-src 'self' https://cdnjs.cloudflare.com https://unpkg.com 'wasm-unsafe-eval'; " +
     "style-src 'self' 'unsafe-inline'; " +
     "connect-src 'self' ws: wss:; " +
     "img-src 'self' data:; " +

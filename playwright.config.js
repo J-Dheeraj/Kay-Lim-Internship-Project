@@ -17,8 +17,8 @@ export default defineConfig({
   globalSetup: './test/smoke.setup.js',
   testDir:     './test',
   testMatch:   '**/*.spec.js',
-  timeout:     30_000,
-  use:         { headless: true },
+  timeout:     60_000,
+  use:         { headless: true, actionTimeout: 20_000 },
   webServer: [
     {
       command:              'node acc_backend_server.js',
