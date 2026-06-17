@@ -54,6 +54,21 @@ test('ACC server sets Content-Security-Policy with required directives', async (
     assert.ok(csp.includes("default-src 'self'"), "CSP contains default-src 'self'");
     assert.ok(csp.includes('frame-src https://app.powerbi.com'), 'CSP allows Power BI frame');
     assert.ok(csp.includes('https://cdnjs.cloudflare.com'), 'CSP allows cdnjs for Chart.js');
+
+    // Verify HTML root has no bare inline <script> blocks — all scripts must be external.
+    // A bare inline block looks like <script> with no src= attribute followed by JS content.
+    const html = await res.text();
+    assert.ok(!/<script(?![^>]*\bsrc\s*=)[^>]*>[^<\s]/.test(html),
+      'HTML root page has no inline <script> content block');
+    assert.ok(html.includes('src="/construction_dashboard.js"'),
+      'HTML references external /construction_dashboard.js');
+
+    // Verify the external JS file is actually served (confirms CSP script-src 'self' will pass)
+    const jsRes = await fetch(`http://127.0.0.1:${ACC_PORT}/construction_dashboard.js`);
+    assert.strictEqual(jsRes.status, 200, '/construction_dashboard.js returns 200');
+    const ct = jsRes.headers.get('content-type') ?? '';
+    assert.ok(ct.includes('javascript') || ct.includes('application/js'),
+      '/construction_dashboard.js content-type is JavaScript');
   } finally {
     srv.kill('SIGTERM');
     await new Promise(r => srv.once('exit', r));
@@ -79,6 +94,20 @@ test('IDD server sets Content-Security-Policy with required directives', async (
     assert.ok(csp.includes("default-src 'self'"), "CSP contains default-src 'self'");
     assert.ok(csp.includes('ws: wss:'), 'CSP allows WebSocket connections for Socket.IO');
     assert.ok(csp.includes('https://cdnjs.cloudflare.com'), 'CSP allows cdnjs for Chart.js');
+
+    // Verify HTML root has no bare inline <script> blocks
+    const html = await res.text();
+    assert.ok(!/<script(?![^>]*\bsrc\s*=)[^>]*>[^<\s]/.test(html),
+      'HTML root page has no inline <script> content block');
+    assert.ok(html.includes('src="/idd_production_app.js"'),
+      'HTML references external /idd_production_app.js');
+
+    // Verify the external JS file is served (confirms CSP script-src 'self' will pass)
+    const jsRes = await fetch(`http://127.0.0.1:${IDD_PORT}/idd_production_app.js`);
+    assert.strictEqual(jsRes.status, 200, '/idd_production_app.js returns 200');
+    const ct = jsRes.headers.get('content-type') ?? '';
+    assert.ok(ct.includes('javascript') || ct.includes('application/js'),
+      '/idd_production_app.js content-type is JavaScript');
   } finally {
     srv.kill('SIGTERM');
     await new Promise(r => srv.once('exit', r));

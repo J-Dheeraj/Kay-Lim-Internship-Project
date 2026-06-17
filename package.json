@@ -12,7 +12,8 @@
     "dev": "node --watch acc_backend_server.js",
     "start:idd": "node idd_production_server.js",
     "dev:idd": "node --watch idd_production_server.js",
-    "test": "node --test --test-concurrency=1"
+    "test": "node --test --test-concurrency=1 'test/*.test.js'",
+    "smoke": "playwright test"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
@@ -23,6 +24,7 @@
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "socket.io-client": "^4.7.5"
   },
   "overrides": {

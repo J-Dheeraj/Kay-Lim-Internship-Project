@@ -27,11 +27,37 @@ jobs:
           node --check idd_store.js
           node --check idd_production_server.js
           node --check acc_backend_server.js
+          node --check construction_dashboard.js
+          node --check idd_production_app.js
       - run: npm test
       - name: Dependency audit (fail on high/critical CVEs)
         run: npm audit --audit-level=high
       - name: Validate Docker Compose config
         run: SESSION_SECRET=ci-placeholder-not-real ADMIN_PASSWORD=ci-placeholder DOMAIN=example.com docker compose config -q
+
+  # ── Browser smoke tests (Playwright + Chromium) ───────────────────────────
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Rebuild native modules for current Node
+        run: npm rebuild better-sqlite3
+      - name: Run Playwright smoke tests
+        run: npm run smoke
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: playwright-report/
+          retention-days: 7
 
   # ── Secret / credential leak scan ─────────────────────────────────────────
   secret-scan:
