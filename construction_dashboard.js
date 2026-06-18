@@ -206,8 +206,8 @@ async function loadAll(){
     if(chRFI){chRFI.data.datasets[0].data=[open,overdue,closed];chRFI.update()}
     const tbody=document.querySelector('#rfi-table tbody');
     if(tbody)tbody.innerHTML=rfi.results.slice(0,8).map(r=>{
-      const sc=r.status==='closed'?'#eaf3de;color:#2e7d32':r.status==='overdue'?'#fcebeb;color:#791f1f':'#faeeda;color:#854f0b';
-            return'<tr><td class="mono">'+esc(r.id||'â€”')+'</td><td>'+esc(r.subject||r.title||'â€”')+'</td><td>'+esc(r.discipline||'â€”')+'</td><td>â€”</td><td>'+esc(r.assignedTo||'â€”')+'</td><td><span class="pill" style="background:'+sc+'">'+esc(r.status)+'</span></td><td>'+esc(r.dueDate||'â€”')+'</td><td>'+esc(r.agedays!=null?r.agedays+'d':'â€”')+'</td></tr>';
+      const sc=r.status==='closed'?'pill-green':r.status==='overdue'?'pill-red':'pill-amber';
+            return'<tr><td class=”mono”>'+esc(r.id||'—')+'</td><td>'+esc(r.subject||r.title||'—')+'</td><td>'+esc(r.discipline||'—')+'</td><td>—</td><td>'+esc(r.assignedTo||'—')+'</td><td><span class=”pill '+sc+'”>'+esc(r.status)+'</span></td><td>'+esc(r.dueDate||'—')+'</td><td>'+esc(r.agedays!=null?r.agedays+'d':'—')+'</td></tr>';
     }).join('');
   }
 
@@ -242,8 +242,8 @@ async function loadAll(){
     setEl('ptw-expired',ptw.results.filter(p=>p.status==='expired').length);
     const tbody=document.querySelector('#ptw-table tbody');
     if(tbody)tbody.innerHTML=ptw.results.slice(0,8).map(p=>{
-      const sc=p.status==='active'?'#eaf3de;color:#2e7d32':p.status==='expiring'?'#faeeda;color:#854f0b':'#fcebeb;color:#791f1f';
-      return'<tr><td class="mono">'+esc(p.id||'â€”')+'</td><td>â€”</td><td>'+esc(p.work||'â€”')+'</td><td>'+esc(p.location||'â€”')+'</td><td>â€”</td><td>'+esc(p.issuer||'â€”')+'</td><td>â€”</td><td>'+esc(p.expiry||'â€”')+'</td><td><span class="pill" style="background:'+sc+'">'+esc(p.status)+'</span></td></tr>';
+      const sc=p.status==='active'?'pill-green':p.status==='expiring'?'pill-amber':'pill-red';
+      return'<tr><td class=”mono”>'+esc(p.id||'—')+'</td><td>—</td><td>'+esc(p.work||'—')+'</td><td>'+esc(p.location||'—')+'</td><td>—</td><td>'+esc(p.issuer||'—')+'</td><td>—</td><td>'+esc(p.expiry||'—')+'</td><td><span class=”pill '+sc+'”>'+esc(p.status)+'</span></td></tr>';
     }).join('');
   }
 
@@ -393,14 +393,14 @@ window.loadPbiReport=async function(reportId){
   const guide=document.getElementById('pbi-setup-guide');
   if(!container)return;
   container.style.display='block';
-  container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.88rem">Loading reportâ€¦</div>';
+  container.innerHTML='<div class="pbi-msg">Loading report…</div>';
   const data=await tryFetch('/api/powerbi-embed?reportId='+encodeURIComponent(reportId),null);
   if(!data||data.error){
-    container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--amber);font-size:.88rem">âš  '+esc(data&&data.error?data.error:'Unable to load report. Check Power BI credentials in .env')+'</div>';
+    container.innerHTML='<div class="pbi-msg pbi-msg-err">&#x26A0; '+esc(data&&data.error?data.error:'Unable to load report. Check Power BI credentials in .env')+'</div>';
     return;
   }
   if(data._source==='mock'||!data.embedToken){
-    container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.86rem">Power BI Embedded requires Azure AD credentials in .env<br><br><a href="https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal" target="_blank" style="color:var(--blue)">Setup guide â†’</a></div>';
+    container.innerHTML='<div class="pbi-msg">Power BI Embedded requires Azure AD credentials in .env<br><br><a href="https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal" target="_blank" class="pbi-lnk">Setup guide &#x2192;</a></div>';
     return;
   }
   if(guide) guide.style.display='none';

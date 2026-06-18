@@ -205,18 +205,19 @@ function renderElements(els) {
   empty.style.display = 'none';
   tbody.innerHTML = els.map(e => {
     const cp = e.checklistProgress;
-    const bar = cp.total ? `<div style="display:flex;align-items:center;gap:6px"><div class="progress-bar-wrap"><div class="progress-bar" style="width:${cp.pct}%"></div></div><span style="font-size:11px;color:var(--muted)">${cp.done}/${cp.total}</span></div>` : '<span style="color:var(--muted);font-size:11px">â€”</span>';
+    const bar = cp.total ? `<div class="flex-gap-8"><div class="progress-bar-wrap"><div class="progress-bar" data-pb-w="${cp.pct}%"></div></div><span class="txt-11-muted">${cp.done}/${cp.total}</span></div>` : '<span class="txt-11-muted">â€”</span>';
     return `<tr class="clickable" data-action="open-element" data-element-id="${escAttr(e.id)}">
-      <td><span style="font-family:monospace;font-size:12px;font-weight:600;color:var(--teal-text)">${esc(e.id)}</span></td>
+      <td><span class="el-id">${esc(e.id)}</span></td>
       <td><span class="tag">${esc(e.type)}</span></td>
       <td>${esc(e.block)} Â· ${esc(e.level)}</td>
-      <td style="font-family:monospace;font-size:12px">${esc(e.batch)}</td>
+      <td class="mono-sm">${esc(e.batch)}</td>
       <td>${badge(e.status)}</td>
-      <td style="font-size:12px;color:var(--muted)">${e.plannedDate}</td>
+      <td class="txt-12-muted">${e.plannedDate}</td>
       <td>${bar}</td>
-      <td>${e.ncrCount > 0 ? `<span style="color:var(--red);font-weight:700">âš  ${e.ncrCount}</span>` : '<span style="color:var(--muted)">â€”</span>'}</td>
+      <td>${e.ncrCount > 0 ? `<span class="ncr-warn">âš  ${e.ncrCount}</span>` : '<span class="txt-muted">â€”</span>'}</td>
     </tr>`;
   }).join('');
+  tbody.querySelectorAll('.progress-bar[data-pb-w]').forEach(b => { b.style.width = b.dataset.pbW; });
 }
 
 // â”€â”€â”€ Element Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -265,10 +266,10 @@ function renderDetail(el) {
       </div>
       <div class="ncr-body">${esc(n.description)}</div>
       ${n.location ? `<div class="ncr-meta">ðŸ“ ${esc(n.location)}</div>` : ''}
-      <div class="ncr-meta" style="margin-top:4px">Raised by ${esc(n.raisedBy)} Â· ${new Date(n.raisedAt).toLocaleDateString('en-SG')}</div>
-      ${n.correctiveAction ? `<div style="font-size:13px;color:var(--green);margin-top:8px">âœ“ Corrective action: ${esc(n.correctiveAction)}</div>` : ''}
-      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" data-action="open-close-ncr" data-id="${escAttr(n.id)}">Close NCR</button></div>` : ''}
-    </div>`).join('') : '<div style="color:var(--muted);font-size:13px;padding:8px 0">No NCRs raised for this element.</div>';
+      <div class="ncr-meta ncr-meta-raised">Raised by ${esc(n.raisedBy)} Â· ${new Date(n.raisedAt).toLocaleDateString('en-SG')}</div>
+      ${n.correctiveAction ? `<div class="corrective-action">âœ“ Corrective action: ${esc(n.correctiveAction)}</div>` : ''}
+      ${n.status !== 'closed' ? `<div class="close-ncr-wrap"><button class="btn btn-sm btn-secondary" data-action="open-close-ncr" data-id="${escAttr(n.id)}">Close NCR</button></div>` : ''}
+    </div>`).join('') : '<div class="empty-ncrs">No NCRs raised for this element.</div>';
 
   const cp = el.checklist.filter(i => i.result !== null).length;
   const pct = el.checklist.length ? Math.round(cp/el.checklist.length*100) : 0;
@@ -283,7 +284,7 @@ function renderDetail(el) {
         <span>Grade: <strong>${esc(el.concreteGrade)}</strong></span>
         <span>Weight: <strong>${esc(el.weight)}</strong></span>
       </div>
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <div class="detail-btns">
         <button class="btn btn-primary btn-sm" data-action="open-status-modal" data-id="${escAttr(el.id)}" data-value="${escAttr(el.status)}">Update Status</button>
         <button class="btn btn-danger btn-sm" data-action="open-ncr-modal" data-id="${escAttr(el.id)}">âš  Raise NCR</button>
         <button class="btn btn-secondary btn-sm" data-action="show-qr" data-id="${escAttr(el.id)}">â¬› Show QR</button>
@@ -292,15 +293,15 @@ function renderDetail(el) {
 
     <div class="section-title">Production Status</div>
     <div class="stepper">${steps}</div>
-    ${isNCR ? `<div style="background:#450a0a22;border:1px solid #ef444444;border-radius:8px;padding:12px;margin-bottom:20px;font-size:13px;color:#fca5a5">âš  NCR open â€” element on hold until non-conformance is resolved.</div>` : ''}
+    ${isNCR ? `<div class="ncr-alert">âš  NCR open â€” element on hold until non-conformance is resolved.</div>` : ''}
 
     <div class="divider"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div class="section-title" style="margin-bottom:0">QC Inspection Checklist</div>
-      <div style="font-size:12px;color:var(--muted)">${cp}/${el.checklist.length} checked Â· ${pct}%</div>
+    <div class="checklist-header">
+      <div class="section-title mb-0">QC Inspection Checklist</div>
+      <div class="checklist-count">${cp}/${el.checklist.length} checked Â· ${pct}%</div>
     </div>
     <div class="checklist">${rows}</div>
-    <div style="margin-bottom:8px"><button class="btn btn-primary btn-sm" data-action="submit-checklist" data-id="${escAttr(el.id)}">Save Inspection</button></div>
+    <div class="save-btn-wrap"><button class="btn btn-primary btn-sm" data-action="submit-checklist" data-id="${escAttr(el.id)}">Save Inspection</button></div>
 
     <div class="divider"></div>
     <div class="section-title">Non-Conformance Reports</div>
@@ -308,11 +309,11 @@ function renderDetail(el) {
 
     <div class="divider"></div>
     <div class="section-title">Status History</div>
-    <div class="tcard" style="margin-bottom:0">
+    <div class="tcard tcard-no-mb">
       <table class="t">
         <thead><tr><th>From</th><th>To</th><th>By</th><th>At</th></tr></thead>
         <tbody>
-          ${el.statusHistory.map(h=>`<tr><td>${h.from ? badge(h.from) : 'â€”'}</td><td>${badge(h.to)}</td><td>${esc(h.by)}</td><td style="font-size:12px;color:var(--muted)">${new Date(h.at).toLocaleString('en-SG')}</td></tr>`).join('')}
+          ${el.statusHistory.map(h=>`<tr><td>${h.from ? badge(h.from) : 'â€”'}</td><td>${badge(h.to)}</td><td>${esc(h.by)}</td><td class="history-date">${new Date(h.at).toLocaleString('en-SG')}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>
@@ -425,11 +426,11 @@ async function renderNCRs() {
         <span class="ncr-no">${esc(n.ncrNo)}</span>
         <span class="s-badge ${n.status==='closed'?'s-qc_passed':'s-ncr_open'}">${esc(n.status.replace('_',' '))}</span>
         <span class="sev-${n.severity}">${esc(n.severity.toUpperCase())}</span>
-        <span style="margin-left:auto;font-size:12px;cursor:pointer;color:var(--teal-text)" data-action="open-element" data-id="${escAttr(n.elementId)}">â†’ ${esc(n.elementId)}</span>
+        <span class="ncr-link" data-action="open-element" data-id="${escAttr(n.elementId)}">â†’ ${esc(n.elementId)}</span>
       </div>
       <div class="ncr-body">${esc(n.description)}</div>
       <div class="ncr-meta">ðŸ“ ${esc(n.location||'â€”')} Â· Raised by ${esc(n.raisedBy)} Â· ${new Date(n.raisedAt).toLocaleDateString('en-SG')}</div>
-      ${n.status !== 'closed' ? `<div style="margin-top:10px"><button class="btn btn-sm btn-secondary" data-action="open-close-ncr" data-id="${escAttr(n.id)}">Close NCR</button></div>` : `<div style="font-size:13px;color:var(--green);margin-top:8px">âœ“ ${esc(n.correctiveAction)}</div>`}
+      ${n.status !== 'closed' ? `<div class=”close-ncr-wrap”><button class=”btn btn-sm btn-secondary” data-action=”open-close-ncr” data-id=”${escAttr(n.id)}”>Close NCR</button></div>` : `<div class=”corrective-action”>✔ ${esc(n.correctiveAction)}</div>`}
     </div>`).join('');
 }
 

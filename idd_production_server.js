@@ -32,8 +32,15 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { createStore } from './idd_store.js';
 import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, seesAllSites, assertSecureConfig, makeServer } from './auth.js';
+import { makeLogger } from './logger.js';
+import { validateConfig, IDD_SCHEMA } from './config-schema.js';
+import { randomUUID } from 'node:crypto';
 
 assertSecureConfig();   // refuse to boot with example/placeholder secrets
+const log = makeLogger('idd');
+const { errors: cfgErrors, warnings: cfgWarnings } = validateConfig(process.env, IDD_SCHEMA);
+cfgWarnings.forEach(w => log.warn('config', { detail: w }));
+if (cfgErrors.length) { cfgErrors.forEach(e => log.error('config', { detail: e })); process.exit(1); }
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
@@ -69,12 +76,20 @@ app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' https://cdnjs.cloudflare.com https://unpkg.com 'wasm-unsafe-eval'; " +
-    "style-src 'self' 'unsafe-inline'; " +
+    "style-src 'self'; " +
     "connect-src 'self' ws: wss:; " +
     "img-src 'self' data:; " +
     "worker-src blob:;"
   );
   if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+app.use((req, res, next) => {
+  req.reqId = req.headers['x-request-id'] || randomUUID();
+  res.setHeader('X-Request-Id', req.reqId);
+  const t0 = Date.now();
+  res.on('finish', () => log.info('request', { reqId: req.reqId, method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - t0 }));
   next();
 });
 
@@ -97,7 +112,7 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok:false, error:'Too many login attempts — try again in 15 minutes' },
 });
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString(), service: 'idd', uptime: process.uptime() }));
 app.post('/api/login', loginLimiter, loginHandler);
 app.post('/api/logout', requireAuth, logoutHandler);
 

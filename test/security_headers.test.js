@@ -54,6 +54,13 @@ test('ACC server sets Content-Security-Policy with required directives', async (
     assert.ok(csp.includes("default-src 'self'"), "CSP contains default-src 'self'");
     assert.ok(csp.includes('frame-src https://app.powerbi.com'), 'CSP allows Power BI frame');
     assert.ok(csp.includes('https://cdnjs.cloudflare.com'), 'CSP allows cdnjs for Chart.js');
+    assert.ok(!csp.match(/style-src[^;]*'unsafe-inline'/), "CSP style-src does not contain 'unsafe-inline'");
+
+    // Verify CSS file is served
+    const cssRes = await fetch(`http://127.0.0.1:${ACC_PORT}/construction_dashboard.css`);
+    assert.strictEqual(cssRes.status, 200, '/construction_dashboard.css returns 200');
+    assert.ok((cssRes.headers.get('content-type') ?? '').includes('text/css'),
+      '/construction_dashboard.css content-type is text/css');
 
     // Verify HTML root has no bare inline <script> blocks — all scripts must be external.
     // A bare inline block looks like <script> with no src= attribute followed by JS content.
@@ -94,6 +101,13 @@ test('IDD server sets Content-Security-Policy with required directives', async (
     assert.ok(csp.includes("default-src 'self'"), "CSP contains default-src 'self'");
     assert.ok(csp.includes('ws: wss:'), 'CSP allows WebSocket connections for Socket.IO');
     assert.ok(csp.includes('https://cdnjs.cloudflare.com'), 'CSP allows cdnjs for Chart.js');
+    assert.ok(!csp.match(/style-src[^;]*'unsafe-inline'/), "CSP style-src does not contain 'unsafe-inline'");
+
+    // Verify CSS file is served
+    const cssRes = await fetch(`http://127.0.0.1:${IDD_PORT}/idd_production_app.css`);
+    assert.strictEqual(cssRes.status, 200, '/idd_production_app.css returns 200');
+    assert.ok((cssRes.headers.get('content-type') ?? '').includes('text/css'),
+      '/idd_production_app.css content-type is text/css');
 
     // Verify HTML root has no bare inline <script> blocks
     const html = await res.text();

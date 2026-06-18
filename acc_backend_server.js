@@ -20,8 +20,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 import { requireAuth, loginHandler, logoutHandler, requireFeatureAdmin, assertSecureConfig, makeServer } from './auth.js';
+import { makeLogger } from './logger.js';
+import { validateConfig, ACC_SCHEMA } from './config-schema.js';
+import { randomUUID } from 'node:crypto';
 
 assertSecureConfig();   // refuse to boot with example/placeholder secrets
+
+const log = makeLogger('acc');
+const { errors: cfgErrors, warnings: cfgWarnings } = validateConfig(process.env, ACC_SCHEMA);
+cfgWarnings.forEach(w => log.warn('config', { detail: w }));
+if (cfgErrors.length) { cfgErrors.forEach(e => log.error('config', { detail: e })); process.exit(1); }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -74,7 +82,7 @@ app.use((_req, res, next) => {
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net 'wasm-unsafe-eval'; " +
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "style-src 'self' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "connect-src 'self'; " +
     "img-src 'self' data:; " +
@@ -102,8 +110,17 @@ app.post('/api/logout', logoutHandler);   // behind the gate above (requires a v
 
 // Serve the Command Centre dashboard at the root so it can be deployed behind a
 // single origin (the browser then calls /api/* same-origin — no exposed :3001).
+app.use((req, res, next) => {
+  req.reqId = req.headers['x-request-id'] || randomUUID();
+  res.setHeader('X-Request-Id', req.reqId);
+  const t0 = Date.now();
+  res.on('finish', () => log.info('request', { reqId: req.reqId, method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - t0 }));
+  next();
+});
+
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.html')));
 app.get('/construction_dashboard.js', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.js')));
+app.get('/construction_dashboard.css', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.css')));
 
 // Rate limit the token-generating + vendor-proxy endpoints (per security review)
 const proxyLimiter = rateLimit({
@@ -238,7 +255,7 @@ function real(v) { return (typeof v === 'string' && v.trim() && !isPlaceholder(v
 function configured(...names) { return names.every(n => real(process.env[n])); }
 
 // Warn loudly at startup about any credential left as a placeholder.
-function validateConfig() {
+function warnPlaceholderCreds() {
   const creds = ['APS_CLIENT_ID','APS_CLIENT_SECRET','PBI_TENANT_ID','PBI_CLIENT_ID',
     'PBI_CLIENT_SECRET','PBI_WORKSPACE_ID','PBI_REPORT_ID','QSE_API_KEY','UNICON_API_KEY','UNICON_COMPANY_ID'];
   const bad = creds.filter(n => process.env[n] && isPlaceholder(process.env[n]));
@@ -251,7 +268,7 @@ function validateConfig() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Health
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString(), service: 'acc', uptime: process.uptime() }));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration status (shows which APIs are configured)
@@ -838,7 +855,7 @@ app.get('/api/idd/logistics', async (_req, res) => {
 
 const { server, tls } = makeServer(app);
 server.listen(PORT, () => {
-  validateConfig();
+  warnPlaceholderCreds();
   console.log(`\n🏗  Kay Lim Dashboard Backend — ${tls ? 'https' : 'http'}://localhost:${PORT}`);
   console.log(`   Auth         : per-user login at POST /api/login (manage users: node auth.js add-user <name> <password>)`);
   console.log(`   TLS          : ${tls ? '✅ HTTPS enabled' : '⚠ HTTP — terminate TLS at a reverse proxy for non-local use'}`);
