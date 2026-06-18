@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "acc",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["acc_backend_server.js"],
+      "port": 3001
+    },
+    {
+      "name": "idd",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["idd_production_server.js"],
+      "port": 3002
+    }
+  ]
+}
