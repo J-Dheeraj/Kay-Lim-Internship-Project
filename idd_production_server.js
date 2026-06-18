@@ -31,7 +31,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { createStore } from './idd_store.js';
-import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, seesAllSites, assertSecureConfig, makeServer } from './auth.js';
+import { requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler, authenticate, seesAllSites, assertSecureConfig, makeServer, purgeExpiredRevocations } from './auth.js';
 import { makeLogger } from './logger.js';
 import { validateConfig, IDD_SCHEMA } from './config-schema.js';
 import { randomUUID } from 'node:crypto';
@@ -41,6 +41,9 @@ const log = makeLogger('idd');
 const { errors: cfgErrors, warnings: cfgWarnings } = validateConfig(process.env, IDD_SCHEMA);
 cfgWarnings.forEach(w => log.warn('config', { detail: w }));
 if (cfgErrors.length) { cfgErrors.forEach(e => log.error('config', { detail: e })); process.exit(1); }
+
+{ const n = purgeExpiredRevocations(); if (n) log.info('startup', { msg: 'revocation compaction', purged: n }); }
+setInterval(() => { const n = purgeExpiredRevocations(); if (n) log.info('revocation-compaction', { purged: n }); }, 60 * 60 * 1000).unref();
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const PORT           = process.env.PORT           || 3002;
@@ -112,7 +115,14 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok:false, error:'Too many login attempts — try again in 15 minutes' },
 });
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString(), service: 'idd', uptime: process.uptime() }));
+app.get('/api/health', (_req, res) => {
+  const dbOk = store.ping();
+  res.status(dbOk ? 200 : 503).json({
+    status: dbOk ? 'ok' : 'degraded',
+    ts: new Date().toISOString(), service: 'idd', uptime: process.uptime(),
+    checks: { db: dbOk },
+  });
+});
 app.post('/api/login', loginLimiter, loginHandler);
 app.post('/api/logout', requireAuth, logoutHandler);
 
@@ -555,6 +565,20 @@ app.get('/api/production/audit/verify', requireAdmin, (_req, res) => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
+function shutdown(signal) {
+  log.info('shutdown', { signal });
+  io.close(() => {
+    httpServer.close(() => {
+      store.close();
+      log.info('shutdown', { stage: 'closed' });
+      process.exit(0);
+    });
+  });
+  setTimeout(() => { log.warn('shutdown', { stage: 'forced-exit', after: '10s' }); process.exit(1); }, 10_000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+
 httpServer.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════════════════════════╗');
   console.log('║  IDD Digital Production Server  —  REAL-TIME  HDB BSS S77║');

@@ -73,7 +73,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2.8.4
+    image: caddy:2.8.4@sha256:b95ed06fbc6d74d24a40902090c8cc6086ce7d08ba60a3a7e8e62bf164a9d7bb
     ports:
       - "80:80"
       - "443:443"

@@ -19,10 +19,11 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
-import { requireAuth, loginHandler, logoutHandler, requireFeatureAdmin, assertSecureConfig, makeServer } from './auth.js';
+import { requireAuth, loginHandler, logoutHandler, requireFeatureAdmin, assertSecureConfig, makeServer, purgeExpiredRevocations } from './auth.js';
 import { makeLogger } from './logger.js';
 import { validateConfig, ACC_SCHEMA } from './config-schema.js';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 
 assertSecureConfig();   // refuse to boot with example/placeholder secrets
 
@@ -30,6 +31,9 @@ const log = makeLogger('acc');
 const { errors: cfgErrors, warnings: cfgWarnings } = validateConfig(process.env, ACC_SCHEMA);
 cfgWarnings.forEach(w => log.warn('config', { detail: w }));
 if (cfgErrors.length) { cfgErrors.forEach(e => log.error('config', { detail: e })); process.exit(1); }
+
+{ const n = purgeExpiredRevocations(); if (n) log.info('startup', { msg: 'revocation compaction', purged: n }); }
+setInterval(() => { const n = purgeExpiredRevocations(); if (n) log.info('revocation-compaction', { purged: n }); }, 60 * 60 * 1000).unref();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -268,7 +272,14 @@ function warnPlaceholderCreds() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Health
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString(), service: 'acc', uptime: process.uptime() }));
+app.get('/api/health', (_req, res) => {
+  const identityOk = existsSync(path.join(process.env.DATA_DIR || __dirname, 'users.json'));
+  res.status(identityOk ? 200 : 503).json({
+    status: identityOk ? 'ok' : 'degraded',
+    ts: new Date().toISOString(), service: 'acc', uptime: process.uptime(),
+    checks: { identity: identityOk },
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration status (shows which APIs are configured)
@@ -854,6 +865,18 @@ app.get('/api/idd/logistics', async (_req, res) => {
 });
 
 const { server, tls } = makeServer(app);
+
+function shutdown(signal) {
+  log.info('shutdown', { signal });
+  server.close(() => {
+    log.info('shutdown', { stage: 'http-closed' });
+    process.exit(0);
+  });
+  setTimeout(() => { log.warn('shutdown', { stage: 'forced-exit', after: '10s' }); process.exit(1); }, 10_000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+
 server.listen(PORT, () => {
   warnPlaceholderCreds();
   console.log(`\n🏗  Kay Lim Dashboard Backend — ${tls ? 'https' : 'http'}://localhost:${PORT}`);

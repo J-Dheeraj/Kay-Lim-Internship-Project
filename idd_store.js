@@ -258,6 +258,9 @@ export function createStore(dbFile) {
     };
   }
 
+  function ping() { try { return !!db.prepare('SELECT 1 AS ok').get(); } catch { return false; } }
+  function close() { db.close(); }
+
   function isEmpty() { return db.prepare('SELECT COUNT(*) c FROM elements').get().c === 0; }
   function counts() {
     return {
@@ -302,7 +305,7 @@ export function createStore(dbFile) {
   return { getElement, withElement, withNcr, listElements, listNcrs,
            elementSite, ncrSite, sites,
            dashboardRaw, isEmpty, counts, exportAll, migrateLegacyBlob, seed,
-           audit, verifyAuditChain, NOT_FOUND };
+           audit, verifyAuditChain, NOT_FOUND, ping, close };
 }
 
 export function checklistProgress(checklist) {

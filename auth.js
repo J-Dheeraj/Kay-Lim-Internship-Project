@@ -38,7 +38,7 @@ const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 // Lazily opened on first use (not at module load) so merely importing auth.js
 // — e.g. a script that only needs hashPassword() — doesn't have the side
 // effect of creating a revocations.db file on disk.
-let _revokedDb, _revokeStmt, _isRevokedSt;
+let _revokedDb, _revokeStmt, _isRevokedSt, _purgeStmt;
 function revokedDb() {
   if (!_revokedDb) {
     _revokedDb = new Database(path.join(DATA_DIR, 'revocations.db'));
@@ -49,8 +49,15 @@ function revokedDb() {
     `);
     _revokeStmt  = _revokedDb.prepare('INSERT OR REPLACE INTO revocations (jti, exp) VALUES (?,?)');
     _isRevokedSt = _revokedDb.prepare('SELECT 1 FROM revocations WHERE jti=?');
+    _purgeStmt   = _revokedDb.prepare('DELETE FROM revocations WHERE exp < ?');
   }
   return _revokedDb;
+}
+
+export function purgeExpiredRevocations() {
+  revokedDb();
+  const { changes } = _purgeStmt.run(Math.floor(Date.now() / 1000));
+  return changes;
 }
 
 // ─── Session secret ───────────────────────────────────────────────────────────
