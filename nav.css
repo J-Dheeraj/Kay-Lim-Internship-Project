@@ -1,0 +1,51 @@
+#idd-hub-nav .hub-heading {
+  padding: 6px 10px 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  color: rgba(255,255,255,.35);
+  text-transform: uppercase;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+#idd-hub-nav .hub-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+  margin: 1px 4px;
+  transition: background .12s;
+}
+
+#idd-hub-nav .hub-row.hub-active {
+  color: #6ee7b7;
+  background: rgba(13,148,136,.25);
+  cursor: default;
+}
+
+#idd-hub-nav a.hub-row {
+  color: rgba(255,255,255,.65);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#idd-hub-nav a.hub-row:hover {
+  background: rgba(255,255,255,.07);
+}
+
+#idd-hub-nav .hub-icon {
+  flex-shrink: 0;
+}
+
+#idd-hub-nav .hub-badge {
+  margin-left: auto;
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(13,148,136,.35);
+  color: #6ee7b7;
+  white-space: nowrap;
+}

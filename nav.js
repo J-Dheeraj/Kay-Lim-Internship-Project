@@ -1,7 +1,8 @@
 /**
  * nav.js — IDD Hub cross-app navigation
  *
- * Drop <script src="/nav.js" defer></script> into any IDD/ACC page.
+ * Drop <link rel="stylesheet" href="/nav.css"> and
+ *     <script src="/nav.js" defer></script> into any IDD/ACC page.
  * Injects a hub section into the existing .sidebar just above
  * .sidebar-footer (ACC) or .live-bar (IDD), linking to all built UCs.
  *
@@ -12,7 +13,6 @@
 (function () {
   var h = location.hostname, port = location.port, proto = location.protocol;
 
-  // Determine which app we're on and the peer's base URL
   var onIDD  = port === '3002' || h.startsWith('idd.');
   var accUrl = onIDD
     ? (port ? proto + '//localhost:3001' : proto + '//' + h.replace(/^idd\./, ''))
@@ -50,25 +50,17 @@
 
   function icon(svg) {
     return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"'
-      + ' stroke="currentColor" stroke-width="2" style="flex-shrink:0">'
+      + ' stroke="currentColor" stroke-width="2" class="hub-icon">'
       + svg + '</svg>';
   }
 
   function row(uc, isActive) {
-    var style = 'display:flex;align-items:center;gap:8px;padding:6px 10px;'
-      + 'font-size:11px;border-radius:5px;margin:1px 4px;transition:background .12s;'
-      + (isActive
-          ? 'color:#6ee7b7;background:rgba(13,148,136,.25);cursor:default;'
-          : 'color:rgba(255,255,255,.65);text-decoration:none;cursor:pointer;');
-    var badge = '<span style="margin-left:auto;font-size:8px;padding:1px 4px;'
-      + 'border-radius:3px;background:rgba(13,148,136,.35);color:#6ee7b7;white-space:nowrap;">'
-      + uc.sub + '</span>';
+    var badge = '<span class="hub-badge">' + uc.sub + '</span>';
     if (isActive || !uc.url) {
-      return '<div style="' + style + '">' + icon(uc.svg) + '<span>' + uc.label + '</span>' + badge + '</div>';
+      return '<div class="hub-row hub-active">'
+        + icon(uc.svg) + '<span>' + uc.label + '</span>' + badge + '</div>';
     }
-    return '<a href="' + uc.url + '" style="' + style + '"'
-      + ' onmouseover="this.style.background=\'rgba(255,255,255,.07)\'"'
-      + ' onmouseout="this.style.background=\'\'">'
+    return '<a href="' + uc.url + '" class="hub-row">'
       + icon(uc.svg) + '<span>' + uc.label + '</span>' + badge + '</a>';
   }
 
@@ -76,17 +68,9 @@
     var sidebar = document.querySelector('.sidebar');
     if (!sidebar) return;
 
-    // Determine which row is the current page
     var activeLabel = onIDD ? 'Digital Production' : 'Command Centre';
-    // If we're on the acc page but on the logistics section, highlight logistics —
-    // but that's runtime state; keep it simple and just highlight the app.
 
-    var html = '<div style="'
-      + 'padding:6px 10px 4px;font-size:9px;font-weight:700;letter-spacing:.07em;'
-      + 'color:rgba(255,255,255,.35);text-transform:uppercase;margin-top:6px;'
-      + 'border-top:1px solid rgba(255,255,255,.08);">'
-      + 'IDD Hub</div>';
-
+    var html = '<div class="hub-heading">IDD Hub</div>';
     UCS.forEach(function (uc) {
       html += row(uc, uc.label === activeLabel);
     });
