@@ -22,14 +22,14 @@ export default defineConfig({
   webServer: [
     {
       command:              'node acc_backend_server.js',
-      url:                  'http://127.0.0.1:3001/api/health',
+      url:                  'http://127.0.0.1:3001/',
       reuseExistingServer:  false,
       timeout:              60_000,
       env: { PORT: '3001', DATA_DIR: DATA, SESSION_SECRET: SECRET, ADMIN_PASSWORD: PW },
     },
     {
       command:              'node idd_production_server.js',
-      url:                  'http://127.0.0.1:3002/api/health',
+      url:                  'http://127.0.0.1:3002/',
       reuseExistingServer:  false,
       timeout:              60_000,
       env: { PORT: '3002', DATA_DIR: DATA, SESSION_SECRET: SECRET, ADMIN_PASSWORD: PW },
