@@ -226,6 +226,10 @@
     <div class="mc"><div class="ml">Completed</div><div class="mv txt-green" id="pl-done">15</div></div>
     <div class="mc"><div class="ml">Completion Rate</div><div class="mv txt-green" id="pl-rate">63%</div></div>
   </div>
+
+  <hr class="divider">
+  <div class="sh"><span class="st"><span class="txt-pbi">●</span> Power BI — Yishun BL Issues</span></div>
+  <div id="pbi-slot-acc-issues" class="pbi-slot-container"></div>
 </section>
 
 <!-- ══════════════ ACC: QUALITY CHECKLISTS ══════════════ -->
@@ -614,16 +618,12 @@
   </tbody></table></div>
 </section>
 
-<!-- ══════════════ POWER BI ══════════════ -->
+<!-- ══════════════ POWER BI INDEX ══════════════ -->
 <section id="tab-powerbi" class="tab-section">
-  <div class="ph"><div><div class="pt">Power BI Reports</div><div class="ps">Embedded from your Power BI workspace</div></div><span class="src-pill pill-pbi">● Power BI</span></div>
-  <div id="pbi-report-list">
-    <label class="pbi-label">Report:</label>
-    <select id="pbi-report-select" class="pbi-select"></select>
-  </div>
-  <div id="pbi-embed-container"></div>
+  <div class="ph"><div><div class="pt">Power BI Reports</div><div class="ps">Reports are embedded directly in their relevant sections</div></div><span class="src-pill pill-pbi">● Power BI</span></div>
+  <div id="pbi-index-list"></div>
   <div id="pbi-setup-guide" class="card">
-    <h3 class="pbi-h3">&#128640; Connect Power BI in 3 steps</h3>
+    <h3 class="pbi-h3">&#128640; Connect more reports via service principal (3 steps)</h3>
     <ol class="pbi-ol">
       <li>Register an Azure AD app at <a href="https://portal.azure.com" target="_blank">portal.azure.com</a> → App registrations → New. Grant: <em>Power BI Service → Dataset.Read.All, Report.Read.All</em>.</li>
       <li>Add the service principal to your Power BI workspace as <em>Member</em>.</li>

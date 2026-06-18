@@ -312,45 +312,70 @@ async function loadAll(){
     if(idLog.onTimeTrend&&chDLOntime){chDLOntime.data.datasets[0].data=idLog.onTimeTrend;chDLOntime.update()}
   }
 
-  /* ── Power BI reports list ──
-     Static iframe reports (autoAuth=true) always appear regardless of
-     whether service-principal credentials are configured in .env.       */
+  /* ── Power BI: mount reports into their feature sections ──
+     Each static entry has a slotId (a div already in the HTML section)
+     and a human-readable `where` label used in the Power BI index tab.
+     Service-principal reports from the backend go to the index tab only. */
   const STATIC_PBI=[
     {name:'Yishun BL Issues',_iframe:true,
+     slotId:'pbi-slot-acc-issues',
+     where:'Issues — RFIs & Defects',
      embedUrl:'https://app.powerbi.com/reportEmbed?reportId=987bfdd1-d3d3-44d1-abe3-187a2a782547&autoAuth=true&ctid=d9435327-6413-4355-a52c-8a64ac9d668f'},
   ];
+
+  /* Mount static reports directly into their section slots */
+  STATIC_PBI.forEach(r=>{
+    if(!r.slotId) return;
+    const slot=document.getElementById(r.slotId);
+    if(!slot) return;
+    const iframe=document.createElement('iframe');
+    iframe.src=r.embedUrl;
+    iframe.title=r.name;
+    iframe.setAttribute('allowfullscreen','true');
+    iframe.setAttribute('loading','lazy');
+    slot.appendChild(iframe);
+  });
+
+  /* Build the Power BI index tab */
   const pbiRep=await tryFetch('/api/powerbi-reports',null);
-  const _dynR=(pbiRep&&(pbiRep.reports||pbiRep.value))||(pbiRep&&pbiRep.value?pbiRep.value:[]);
-  const _allR=[...(Array.isArray(_dynR)?_dynR:[]),...STATIC_PBI];
-  const listEl=document.getElementById('pbi-report-list');
-  const guideEl=document.getElementById('pbi-setup-guide');
-  const embedEl=document.getElementById('pbi-embed-container');
   const pbiLive=intStatus&&intStatus.pbi&&intStatus.pbi.configured;
-  if(listEl&&_allR.length){
-    listEl.innerHTML='';
-    /* Build via DOM + addEventListener — report ids and URLs are bound as JS
-       values, never concatenated into markup, preventing DOM XSS. */
-    let firstDynId=null,firstIframeUrl=null;
-    _allR.forEach(r=>{
-      if(!r._iframe&&!firstDynId) firstDynId=r.id;
-      if(r._iframe&&!firstIframeUrl) firstIframeUrl=r.embedUrl;
-      const div=document.createElement('div');
-      div.style.cssText='padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s';
-      div.textContent=(r.name==null?'':String(r.name));
-      div.addEventListener('click',()=>{
-        listEl.querySelectorAll('div[class=””]').forEach(d=>d.style.background='#fff');
-        div.style.background='#e8f0fe';
-        if(r._iframe) loadPbiIframe(r.embedUrl); else loadPbiReport(r.id);
-      });
-      div.addEventListener('mouseover',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#f0f4ff'});
-      div.addEventListener('mouseout',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#fff'});
-      listEl.appendChild(div);
+  const _dynR=pbiRep&&Array.isArray(pbiRep.reports||pbiRep.value)?(pbiRep.reports||pbiRep.value):[];
+  const indexEl=document.getElementById('pbi-index-list');
+  const guideEl=document.getElementById('pbi-setup-guide');
+  const allForIndex=[...STATIC_PBI,..._dynR.map(r=>({name:r.name,where:'Power BI Workspace',_dyn:true,id:r.id}))];
+  if(indexEl&&allForIndex.length){
+    allForIndex.forEach(r=>{
+      const card=document.createElement('div');
+      card.className='pbi-index-card';
+      const dot=document.createElement('span');
+      dot.className='pbi-index-dot';
+      const info=document.createElement('div');
+      const title=document.createElement('div');
+      title.className='pbi-index-card-title';
+      title.textContent=r.name==null?'':String(r.name);
+      const where=document.createElement('div');
+      where.className='pbi-index-card-where';
+      where.textContent='Embedded in: '+(r.where||'Power BI tab');
+      info.appendChild(title);
+      info.appendChild(where);
+      card.appendChild(dot);
+      card.appendChild(info);
+      if(r.slotId){
+        /* Navigate to the section containing the embedded report */
+        card.addEventListener('click',()=>{
+          const slot=document.getElementById(r.slotId);
+          if(slot){
+            const sec=slot.closest('.tab-section');
+            if(sec) T(sec.id.replace('tab-',''),null);
+            setTimeout(()=>slot.scrollIntoView({behavior:'smooth',block:'start'}),80);
+          }
+        });
+      } else if(r._dyn){
+        card.addEventListener('click',()=>loadPbiReport(r.id));
+      }
+      indexEl.appendChild(card);
     });
-    listEl.style.display='block';
-    if(guideEl) guideEl.style.display='none';
-    if(embedEl) embedEl.style.display='block';
-    if(pbiLive&&firstDynId) loadPbiReport(firstDynId);
-    else if(firstIframeUrl)  loadPbiIframe(firstIframeUrl);
+    if(guideEl&&(pbiLive||STATIC_PBI.length)) guideEl.style.display='none';
   }
 }
 loadAll();
