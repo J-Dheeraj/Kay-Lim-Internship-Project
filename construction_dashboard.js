@@ -61,10 +61,11 @@ function renderProjects(results){
   const el=document.getElementById('uc-projects-grid');
   if(!el||!results)return;
   el.innerHTML=results.map(p=>{
-    const bar=p.progress>=70?'var(--green)':p.progress>=40?'var(--blue)':'var(--amber)';
-    const bc=p.status==='active'?'#eaf3de;color:#2e7d32':'#faeeda;color:#854f0b';
-    return'<div class="mc" style="padding:1rem"><div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><span style="font-weight:600;font-size:.86rem">'+esc(p.name)+'</span><span class="pill" style="background:'+bc+'">'+esc(p.status)+'</span></div><div class="pbw"><div class="pb" style="width:'+p.progress+'%;background:'+bar+'"></div></div><div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">'+p.progress+'% Â· '+(p.tasks?p.tasks.done+'/'+p.tasks.total:0)+' tasks Â· Due '+(p.dueDate||'â€”')+'</div></div>';
+    const barCls=p.progress>=70?'pb-green':p.progress>=40?'pb-blue':'pb-amber';
+    const pillCls=p.status==='active'?'pill-green':'pill-amber';
+    return'<div class=”mc mc-pad”><div class=”mc-hd”><span class=”mc-name”>'+esc(p.name)+'</span><span class=”pill '+pillCls+'”>'+esc(p.status)+'</span></div><div class=”pbw”><div class=”pb '+barCls+'” data-pb-w=”'+p.progress+'%”></div></div><div class=”mc-foot”>'+p.progress+'% \xb7 '+(p.tasks?p.tasks.done+'/'+p.tasks.total:0)+' tasks \xb7 Due '+(p.dueDate||'—')+'</div></div>';
   }).join('');
+  el.querySelectorAll('.pb[data-pb-w]').forEach(b=>{b.style.width=b.dataset.pbW;});
 }
 
 /* â”€â”€ Connection status dots â”€â”€ */

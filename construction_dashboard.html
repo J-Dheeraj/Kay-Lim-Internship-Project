@@ -13,94 +13,8 @@
 <title>Kay Lim — Construction Command Centre</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/construction_dashboard.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
-<style>
-:root{
-  --bg:#f0f2f5;--sidebar:#1a1f2e;--sidebar-hover:rgba(255,255,255,.07);--sidebar-active:#2d3448;
-  --card:#fff;--border:#e2e6ea;--text:#1a1f2e;--muted:#6b7280;
-  --blue:#185fa5;--green:#2e7d32;--amber:#b45309;--red:#b91c1c;
-  --acc:#e8610a;--qse:#0055cc;--unicon:#6d28d9;--pbi:#c5a000;--idd:#0d9488;
-  --r:10px;--sh:0 1px 4px rgba(0,0,0,.08)
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
-.sidebar{width:230px;flex-shrink:0;background:var(--sidebar);display:flex;flex-direction:column;overflow-y:auto}
-.logo{padding:1.2rem 1.1rem .75rem;border-bottom:1px solid rgba(255,255,255,.08)}
-.logo-title{font-size:.93rem;font-weight:700;color:#fff}
-.logo-sub{font-size:.69rem;color:rgba(255,255,255,.4);margin-top:.15rem}
-.nav-group{padding:.9rem .7rem .25rem;font-size:.66rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:.4rem}
-.nav-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.nav-item{display:flex;align-items:center;gap:.55rem;padding:.48rem .9rem;cursor:pointer;color:rgba(255,255,255,.6);font-size:.82rem;border-radius:6px;margin:0 .35rem 1px;transition:background .12s,color .12s;user-select:none}
-.nav-item:hover{background:var(--sidebar-hover);color:#fff}
-.nav-item.active{background:var(--sidebar-active);color:#fff;font-weight:600}
-.sidebar-footer{margin-top:auto;padding:.9rem 1rem;border-top:1px solid rgba(255,255,255,.08);font-size:.7rem;color:rgba(255,255,255,.3);line-height:1.7}
-.main{flex:1;overflow-y:auto;padding:1.4rem 1.7rem}
-.tab-section{display:none}.tab-section.active{display:block}
-.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.6rem}
-.pt{font-size:1.25rem;font-weight:700}.ps{font-size:.8rem;color:var(--muted);margin-top:.15rem}
-.src-pill{font-size:.71rem;font-weight:700;padding:.25rem .6rem;border-radius:20px;letter-spacing:.02em}
-.pill-acc{background:#fff0e6;color:#b34a00}.pill-qse{background:#e6f0ff;color:#003d99}
-.pill-unicon{background:#f3eeff;color:#5b21b6}.pill-pbi{background:#fffde6;color:#7a6000}.pill-idd{background:#e6faf8;color:#0a7060}
-.card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh)}
-.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.75rem;margin-bottom:1.1rem}
-.mc{background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:.9rem 1rem;box-shadow:var(--sh)}
-.ms{font-size:.67rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.3rem;display:flex;align-items:center;gap:.3rem}
-.md{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.ml{font-size:.76rem;color:var(--muted);margin-bottom:.15rem}
-.mv{font-size:1.65rem;font-weight:700;line-height:1.1}
-.msub{font-size:.73rem;color:var(--muted);margin-top:.2rem}
-.sh{display:flex;align-items:center;justify-content:space-between;margin:1.3rem 0 .65rem}
-.st{font-size:.82rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:.75rem;margin-bottom:1.1rem}
-.cc{background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:1rem 1.1rem;box-shadow:var(--sh)}
-.ct{font-size:.79rem;font-weight:600;color:var(--muted);margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem}
-.cw{height:190px;position:relative}
-.tc{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;margin-bottom:.9rem}
-.th2{padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.tt{font-size:.83rem;font-weight:600;display:flex;align-items:center;gap:.45rem}
-table{width:100%;border-collapse:collapse;font-size:.81rem}
-th{text-align:left;padding:.5rem .7rem;font-size:.69rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
-td{padding:.55rem .7rem;border-bottom:1px solid #f1f3f5;vertical-align:middle}
-tr:last-child td{border-bottom:none}
-.pill{display:inline-block;font-size:.69rem;font-weight:700;padding:.18rem .5rem;border-radius:20px}
-.mono{font-family:monospace;font-size:.78rem}
-.badge{font-size:.66rem;font-weight:700;letter-spacing:.04em;padding:.13rem .42rem;border-radius:4px}
-.pbw{background:#e8eaed;border-radius:4px;height:6px;overflow:hidden;margin-top:.3rem}
-.pb{height:100%;border-radius:4px;transition:width .5s}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.9rem}
-@media(max-width:900px){.two-col{grid-template-columns:1fr}}
-/* Mobile hamburger button */
-.hamburger{display:none;position:fixed;top:12px;left:12px;z-index:300;background:var(--sidebar);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 10px;cursor:pointer;color:#fff;font-size:18px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,.25)}
-/* Overlay behind open sidebar on mobile */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:199}
-.sidebar-overlay.open{display:block}
-@media(max-width:768px){
-  body{height:auto;min-height:100vh;overflow:auto}
-  .hamburger{display:block}
-  .sidebar{position:fixed;left:-240px;top:0;height:100%;z-index:200;transition:left .25s ease;overflow-y:auto;width:230px}
-  .sidebar.open{left:0}
-  .main{padding:1rem;overflow-y:visible;padding-top:3.5rem}
-}
-.divider{border:none;border-top:1px solid var(--border);margin:1.2rem 0}
-.info-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem;margin-bottom:.9rem}
-.info-cell{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem}
-.ik{font-size:.69rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-.iv{font-size:.87rem;font-weight:600;margin-top:.15rem}
-/* ── Table search ── */
-.tbl-controls{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;padding:.6rem .9rem;border-bottom:1px solid var(--border);background:#fafbfc}
-.tbl-search{flex:1;min-width:160px;max-width:280px;padding:.42rem .65rem;border:1px solid var(--border);border-radius:7px;font-size:.8rem;font-family:inherit;outline:none;color:var(--text)}
-.tbl-search:focus{border-color:var(--blue)}
-/* ── Login form ── */
-.login-card{background:var(--sidebar);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:2rem;width:330px;box-shadow:0 16px 48px rgba(0,0,0,.5)}
-.login-card h2{margin:0 0 .2rem;font-size:1rem;font-weight:700;color:#fff}
-.login-card p{margin:0 0 1.25rem;font-size:.8rem;color:rgba(255,255,255,.45)}
-.login-field{width:100%;box-sizing:border-box;margin-bottom:.55rem;padding:.55rem .7rem;border:1px solid rgba(255,255,255,.15);border-radius:8px;font-size:.88rem;background:rgba(255,255,255,.07);color:#fff;outline:none;font-family:inherit}
-.login-field:focus{border-color:rgba(99,179,237,.7)}
-.login-field::placeholder{color:rgba(255,255,255,.3)}
-.login-err{color:#fca5a5;font-size:.78rem;min-height:1.1rem;margin-bottom:.45rem}
-.login-btn{width:100%;padding:.6rem;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:.9rem;cursor:pointer;font-weight:600;font-family:inherit}
-.login-btn:hover{background:#1d4ed8}
-</style>
 </head>
 <body>
 <!-- Mobile controls -->
@@ -114,12 +28,12 @@ tr:last-child td{border-bottom:none}
     <div class="logo-sub">Construction Command Centre</div>
   </div>
 
-  <div class="nav-group"><span class="nav-dot" style="background:#64748b"></span>Overview</div>
+  <div class="nav-group"><span class="nav-dot bg-slate"></span>Overview</div>
   <div class="nav-item active" data-section="overview">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Command Centre
   </div>
 
-  <div class="nav-group"><span class="nav-dot" style="background:var(--acc)"></span><span style="color:rgba(255,255,255,.5)">Autodesk ACC</span></div>
+  <div class="nav-group"><span class="nav-dot bg-acc"></span><span class="txt-sidebar-dim">Autodesk ACC</span></div>
   <div class="nav-item" data-section="acc-issues">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Issues — RFIs &amp; Defects
   </div>
@@ -139,7 +53,7 @@ tr:last-child td{border-bottom:none}
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Daily Log
   </div>
 
-  <div class="nav-group"><span class="nav-dot" style="background:var(--qse)"></span><span style="color:rgba(255,255,255,.5)">Insight QSE</span></div>
+  <div class="nav-group"><span class="nav-dot bg-qse"></span><span class="txt-sidebar-dim">Insight QSE</span></div>
   <div class="nav-item" data-section="qse-quality">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>QA / QC Inspections
   </div>
@@ -156,7 +70,7 @@ tr:last-child td{border-bottom:none}
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Worker Attendance
   </div>
 
-  <div class="nav-group"><span class="nav-dot" style="background:var(--unicon)"></span><span style="color:rgba(255,255,255,.5)">UniCon</span></div>
+  <div class="nav-group"><span class="nav-dot bg-unicon"></span><span class="txt-sidebar-dim">UniCon</span></div>
   <div class="nav-item" data-section="uc-projects">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Projects
   </div>
@@ -170,14 +84,14 @@ tr:last-child td{border-bottom:none}
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Budget
   </div>
 
-  <div class="nav-group"><span class="nav-dot" style="background:var(--idd)"></span><span style="color:rgba(255,255,255,.5)">IDD QWC1</span></div>
+  <div class="nav-group"><span class="nav-dot bg-idd"></span><span class="txt-sidebar-dim">IDD QWC1</span></div>
   <div class="nav-item" data-section="idd-production">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>Digital Production
   </div>
   <div class="nav-item" data-section="idd-logistics">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Digital Logistics
   </div>
-  <div class="nav-group"><span class="nav-dot" style="background:var(--pbi)"></span><span style="color:rgba(255,255,255,.5)">Power BI</span></div>
+  <div class="nav-group"><span class="nav-dot bg-pbi"></span><span class="txt-sidebar-dim">Power BI</span></div>
   <div class="nav-item" data-section="powerbi">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Reports
   </div>
@@ -185,7 +99,7 @@ tr:last-child td{border-bottom:none}
   <div class="sidebar-footer">
     Synced: <span id="lastSync">—</span><br>
     <span id="srcLabel">connecting…</span><br>
-    <a href="#" data-action="logout" style="color:rgba(255,255,255,.55);text-decoration:underline">Log out</a>
+    <a href="#" data-action="logout" class="logout-lnk">Log out</a>
   </div>
 </nav>
 
@@ -193,7 +107,7 @@ tr:last-child td{border-bottom:none}
 <!-- ══════════════ COMMAND CENTRE ══════════════ -->
 <section id="tab-overview" class="tab-section active">
   <div class="ph"><div><div class="pt">Construction Command Centre</div><div class="ps">All platforms · one view · Block 312 Sembawang BTO</div></div>
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+  <div class="pill-row">
     <span class="src-pill pill-acc">● ACC</span>
     <span class="src-pill pill-qse">● Insight QSE</span>
     <span class="src-pill pill-unicon">● UniCon</span>
@@ -201,41 +115,41 @@ tr:last-child td{border-bottom:none}
   </div></div>
 
   <!-- Connection status -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.7rem;margin-bottom:1.2rem" id="conn-cards">
-    <div class="mc"><div class="ms"><span class="md" id="dot-acc" style="background:#ccc"></span><span style="color:var(--acc)">ACC</span></div><div class="ml">Autodesk Construction Cloud</div><div style="font-size:.76rem;font-weight:600" id="txt-acc">Checking…</div></div>
-    <div class="mc"><div class="ms"><span class="md" id="dot-qse" style="background:#ccc"></span><span style="color:var(--qse)">Insight QSE</span></div><div class="ml">kaylim.insightqse.com</div><div style="font-size:.76rem;font-weight:600" id="txt-qse">Checking…</div></div>
-    <div class="mc"><div class="ms"><span class="md" id="dot-unicon" style="background:#ccc"></span><span style="color:var(--unicon)">UniCon</span></div><div class="ml">app.unicongroup.co</div><div style="font-size:.76rem;font-weight:600" id="txt-unicon">Checking…</div></div>
-    <div class="mc"><div class="ms"><span class="md" id="dot-pbi" style="background:#ccc"></span><span style="color:var(--pbi)">Power BI</span></div><div class="ml">Power BI workspace</div><div style="font-size:.76rem;font-weight:600" id="txt-pbi">Checking…</div></div>
+  <div class="conn-grid" id="conn-cards">
+    <div class="mc"><div class="ms"><span class="md bg-gray" id="dot-acc"></span><span class="txt-acc">ACC</span></div><div class="ml">Autodesk Construction Cloud</div><div class="conn-status-txt" id="txt-acc">Checking…</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-gray" id="dot-qse"></span><span class="txt-qse">Insight QSE</span></div><div class="ml">kaylim.insightqse.com</div><div class="conn-status-txt" id="txt-qse">Checking…</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-gray" id="dot-unicon"></span><span class="txt-unicon">UniCon</span></div><div class="ml">app.unicongroup.co</div><div class="conn-status-txt" id="txt-unicon">Checking…</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-gray" id="dot-pbi"></span><span class="txt-pbi">Power BI</span></div><div class="ml">Power BI workspace</div><div class="conn-status-txt" id="txt-pbi">Checking…</div></div>
   </div>
 
-  <div class="sh"><span class="st"><span style="color:var(--acc)">●</span> ACC — Issues &amp; Quality</span></div>
+  <div class="sh"><span class="st"><span class="txt-acc">●</span> ACC — Issues &amp; Quality</span></div>
   <div class="mg">
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--acc)"></span><span style="color:var(--acc)">ACC</span></div><div class="ml">Open RFIs</div><div class="mv" style="color:var(--amber)" id="ov-rfi-open">12</div><div class="msub" id="ov-rfi-od">3 overdue</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--acc)"></span><span style="color:var(--acc)">ACC</span></div><div class="ml">Open Defects</div><div class="mv" style="color:var(--red)" id="ov-def-open">8</div><div class="msub">Snagging issues</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--acc)"></span><span style="color:var(--acc)">ACC</span></div><div class="ml">Checklist Pass Rate</div><div class="mv" style="color:var(--green)" id="ov-cl-pass">84%</div><div class="msub" id="ov-cl-cnt">From 47 checklists</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--acc)"></span><span style="color:var(--acc)">ACC</span></div><div class="ml">Pending Submittals</div><div class="mv" style="color:var(--amber)" id="ov-sub-pend">6</div><div class="msub" id="ov-sub-od">2 overdue</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--acc)"></span><span style="color:var(--acc)">ACC</span></div><div class="ml">Overall Progress</div><div class="mv" style="color:var(--blue)" id="ov-prog">67%</div><div class="msub">Target 72%</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--acc)"></span><span style="color:var(--acc)">ACC</span></div><div class="ml">Contract Value</div><div class="mv" style="color:var(--text);font-size:1.2rem">S$42M</div><div class="msub" id="ov-cost-pct">68% billed</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-acc"></span><span class="txt-acc">ACC</span></div><div class="ml">Open RFIs</div><div class="mv txt-amber" id="ov-rfi-open">12</div><div class="msub" id="ov-rfi-od">3 overdue</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-acc"></span><span class="txt-acc">ACC</span></div><div class="ml">Open Defects</div><div class="mv txt-red" id="ov-def-open">8</div><div class="msub">Snagging issues</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-acc"></span><span class="txt-acc">ACC</span></div><div class="ml">Checklist Pass Rate</div><div class="mv txt-green" id="ov-cl-pass">84%</div><div class="msub" id="ov-cl-cnt">From 47 checklists</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-acc"></span><span class="txt-acc">ACC</span></div><div class="ml">Pending Submittals</div><div class="mv txt-amber" id="ov-sub-pend">6</div><div class="msub" id="ov-sub-od">2 overdue</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-acc"></span><span class="txt-acc">ACC</span></div><div class="ml">Overall Progress</div><div class="mv txt-blue" id="ov-prog">67%</div><div class="msub">Target 72%</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-acc"></span><span class="txt-acc">ACC</span></div><div class="ml">Contract Value</div><div class="mv txt-text mv-12">S$42M</div><div class="msub" id="ov-cost-pct">68% billed</div></div>
   </div>
 
-  <div class="sh"><span class="st"><span style="color:var(--qse)">●</span> Insight QSE — Safety &amp; Quality</span></div>
+  <div class="sh"><span class="st"><span class="txt-qse">●</span> Insight QSE — Safety &amp; Quality</span></div>
   <div class="mg">
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--qse)"></span><span style="color:var(--qse)">QSE</span></div><div class="ml">Open Non-Conformities</div><div class="mv" style="color:var(--red)" id="ov-nc">4</div><div class="msub" id="ov-nc-wk">2 raised this week</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--qse)"></span><span style="color:var(--qse)">QSE</span></div><div class="ml">Active PTW Permits</div><div class="mv" style="color:var(--blue)" id="ov-ptw">4</div><div class="msub" id="ov-ptw-exp">1 expiring today</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--qse)"></span><span style="color:var(--qse)">QSE</span></div><div class="ml">Daily Insp. Done</div><div class="mv" style="color:var(--green)" id="ov-dinsp">5</div><div class="msub">of 5 required today</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--qse)"></span><span style="color:var(--qse)">QSE</span></div><div class="ml">Defects Raised (QSE)</div><div class="mv" style="color:var(--amber)" id="ov-qse-def">11</div><div class="msub" id="ov-qse-rect">7 rectified</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--qse)"></span><span style="color:var(--qse)">QSE</span></div><div class="ml">Environmental Incidents</div><div class="mv" style="color:var(--amber)" id="ov-env">1</div><div class="msub">Month to date</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--qse)"></span><span style="color:var(--qse)">QSE</span></div><div class="ml">Workers On-Site Today</div><div class="mv" style="color:var(--text)" id="ov-workers">148</div><div class="msub">Via PTW attendance</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-qse"></span><span class="txt-qse">QSE</span></div><div class="ml">Open Non-Conformities</div><div class="mv txt-red" id="ov-nc">4</div><div class="msub" id="ov-nc-wk">2 raised this week</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-qse"></span><span class="txt-qse">QSE</span></div><div class="ml">Active PTW Permits</div><div class="mv txt-blue" id="ov-ptw">4</div><div class="msub" id="ov-ptw-exp">1 expiring today</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-qse"></span><span class="txt-qse">QSE</span></div><div class="ml">Daily Insp. Done</div><div class="mv txt-green" id="ov-dinsp">5</div><div class="msub">of 5 required today</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-qse"></span><span class="txt-qse">QSE</span></div><div class="ml">Defects Raised (QSE)</div><div class="mv txt-amber" id="ov-qse-def">11</div><div class="msub" id="ov-qse-rect">7 rectified</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-qse"></span><span class="txt-qse">QSE</span></div><div class="ml">Environmental Incidents</div><div class="mv txt-amber" id="ov-env">1</div><div class="msub">Month to date</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-qse"></span><span class="txt-qse">QSE</span></div><div class="ml">Workers On-Site Today</div><div class="mv txt-text" id="ov-workers">148</div><div class="msub">Via PTW attendance</div></div>
   </div>
 
-  <div class="sh"><span class="st"><span style="color:var(--unicon)">●</span> UniCon — Projects &amp; Tasks</span></div>
+  <div class="sh"><span class="st"><span class="txt-unicon">●</span> UniCon — Projects &amp; Tasks</span></div>
   <div class="mg">
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--unicon)"></span><span style="color:var(--unicon)">UniCon</span></div><div class="ml">Active Projects</div><div class="mv" style="color:var(--blue)" id="ov-proj">3</div><div class="msub">1 on hold</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--unicon)"></span><span style="color:var(--unicon)">UniCon</span></div><div class="ml">Open Tasks</div><div class="mv" style="color:var(--amber)" id="ov-tasks">34</div><div class="msub" id="ov-tasks-od">7 overdue</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--unicon)"></span><span style="color:var(--unicon)">UniCon</span></div><div class="ml">Due Today</div><div class="mv" style="color:var(--red)" id="ov-due">5</div><div class="msub">Across all projects</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--unicon)"></span><span style="color:var(--unicon)">UniCon</span></div><div class="ml">Budget Utilisation</div><div class="mv" style="color:var(--blue)" id="ov-budget">71%</div><div class="msub">S$29.8M of S$42M</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--unicon)"></span><span style="color:var(--unicon)">UniCon</span></div><div class="ml">Milestones On Track</div><div class="mv" style="color:var(--green)" id="ov-ms">4</div><div class="msub" id="ov-ms-dl">2 delayed</div></div>
-    <div class="mc"><div class="ms"><span class="md" style="background:var(--unicon)"></span><span style="color:var(--unicon)">UniCon</span></div><div class="ml">Team Members</div><div class="mv" style="color:var(--text)" id="ov-team">12</div><div class="msub">8 subcon firms</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-unicon"></span><span class="txt-unicon">UniCon</span></div><div class="ml">Active Projects</div><div class="mv txt-blue" id="ov-proj">3</div><div class="msub">1 on hold</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-unicon"></span><span class="txt-unicon">UniCon</span></div><div class="ml">Open Tasks</div><div class="mv txt-amber" id="ov-tasks">34</div><div class="msub" id="ov-tasks-od">7 overdue</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-unicon"></span><span class="txt-unicon">UniCon</span></div><div class="ml">Due Today</div><div class="mv txt-red" id="ov-due">5</div><div class="msub">Across all projects</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-unicon"></span><span class="txt-unicon">UniCon</span></div><div class="ml">Budget Utilisation</div><div class="mv txt-blue" id="ov-budget">71%</div><div class="msub">S$29.8M of S$42M</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-unicon"></span><span class="txt-unicon">UniCon</span></div><div class="ml">Milestones On Track</div><div class="mv txt-green" id="ov-ms">4</div><div class="msub" id="ov-ms-dl">2 delayed</div></div>
+    <div class="mc"><div class="ms"><span class="md bg-unicon"></span><span class="txt-unicon">UniCon</span></div><div class="ml">Team Members</div><div class="mv txt-text" id="ov-team">12</div><div class="msub">8 subcon firms</div></div>
   </div>
 </section>
 <!-- ══════════════ ACC: ISSUES ══════════════ -->
@@ -245,13 +159,13 @@ tr:last-child td{border-bottom:none}
   <div class="sh"><span class="st">RFI Summary</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total RFIs</div><div class="mv" id="rfi-total">46</div></div>
-    <div class="mc"><div class="ml">Open</div><div class="mv" style="color:var(--amber)" id="rfi-open">12</div></div>
-    <div class="mc"><div class="ml">In Review</div><div class="mv" style="color:var(--blue)" id="rfi-review">5</div></div>
-    <div class="mc"><div class="ml">Closed</div><div class="mv" style="color:var(--green)" id="rfi-closed">29</div></div>
-    <div class="mc"><div class="ml">Overdue</div><div class="mv" style="color:var(--red)" id="rfi-overdue">3</div></div>
+    <div class="mc"><div class="ml">Open</div><div class="mv txt-amber" id="rfi-open">12</div></div>
+    <div class="mc"><div class="ml">In Review</div><div class="mv txt-blue" id="rfi-review">5</div></div>
+    <div class="mc"><div class="ml">Closed</div><div class="mv txt-green" id="rfi-closed">29</div></div>
+    <div class="mc"><div class="ml">Overdue</div><div class="mv txt-red" id="rfi-overdue">3</div></div>
     <div class="mc"><div class="ml">Avg Days Open</div><div class="mv" id="rfi-avg">8.4</div></div>
-    <div class="mc"><div class="ml">Due This Week</div><div class="mv" style="color:var(--amber)" id="rfi-week">4</div></div>
-    <div class="mc"><div class="ml">Responded On Time</div><div class="mv" style="color:var(--green)" id="rfi-ontime">81%</div></div>
+    <div class="mc"><div class="ml">Due This Week</div><div class="mv txt-amber" id="rfi-week">4</div></div>
+    <div class="mc"><div class="ml">Responded On Time</div><div class="mv txt-green" id="rfi-ontime">81%</div></div>
   </div>
 
   <div class="two-col">
@@ -259,16 +173,16 @@ tr:last-child td{border-bottom:none}
     <div class="cc"><div class="ct">RFIs by Discipline</div><div class="cw"><canvas id="c-rfi-disc"></canvas></div></div>
   </div>
 
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> RFI Log</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-acc">●</span> RFI Log</span><span class="badge badge-acc">ACC</span></div>
   <div class="tbl-controls"><input class="tbl-search" id="rfi-search" placeholder="Search RFIs…"></div>
   <table id="rfi-table">
     <thead><tr><th>ID</th><th>Subject</th><th>Discipline</th><th>Raised By</th><th>Assigned To</th><th>Status</th><th>Due Date</th><th>Age</th></tr></thead>
     <tbody>
-      <tr><td class="mono">RFI-046</td><td>Slab edge formwork detail — Level 8</td><td>Structural</td><td>Ahmad Kadir</td><td>PE Tan WH</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>2026-06-14</td><td>3d</td></tr>
-      <tr><td class="mono">RFI-045</td><td>M&amp;E shaft clearance conflict</td><td>M&amp;E</td><td>Rajan S</td><td>Lim BH</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">overdue</span></td><td>2026-06-05</td><td>18d</td></tr>
-      <tr><td class="mono">RFI-044</td><td>Window sill waterproofing spec</td><td>Architectural</td><td>Lim BH</td><td>Ahmad K</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">in review</span></td><td>2026-06-12</td><td>6d</td></tr>
-      <tr><td class="mono">RFI-043</td><td>Pile cap reinforcement query</td><td>Structural</td><td>Ahmad K</td><td>PE Tan WH</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">closed</span></td><td>—</td><td>—</td></tr>
-      <tr><td class="mono">RFI-042</td><td>Fire-rated partition spec — staircase</td><td>Architectural</td><td>Tan WH</td><td>Rajan S</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>2026-06-16</td><td>2d</td></tr>
+      <tr><td class="mono">RFI-046</td><td>Slab edge formwork detail — Level 8</td><td>Structural</td><td>Ahmad Kadir</td><td>PE Tan WH</td><td><span class="pill pill-amber">open</span></td><td>2026-06-14</td><td>3d</td></tr>
+      <tr><td class="mono">RFI-045</td><td>M&amp;E shaft clearance conflict</td><td>M&amp;E</td><td>Rajan S</td><td>Lim BH</td><td><span class="pill pill-red">overdue</span></td><td>2026-06-05</td><td>18d</td></tr>
+      <tr><td class="mono">RFI-044</td><td>Window sill waterproofing spec</td><td>Architectural</td><td>Lim BH</td><td>Ahmad K</td><td><span class="pill pill-blue">in review</span></td><td>2026-06-12</td><td>6d</td></tr>
+      <tr><td class="mono">RFI-043</td><td>Pile cap reinforcement query</td><td>Structural</td><td>Ahmad K</td><td>PE Tan WH</td><td><span class="pill pill-green">closed</span></td><td>—</td><td>—</td></tr>
+      <tr><td class="mono">RFI-042</td><td>Fire-rated partition spec — staircase</td><td>Architectural</td><td>Tan WH</td><td>Rajan S</td><td><span class="pill pill-amber">open</span></td><td>2026-06-16</td><td>2d</td></tr>
     </tbody>
   </table></div>
 
@@ -276,12 +190,12 @@ tr:last-child td{border-bottom:none}
   <div class="sh"><span class="st">Defects &amp; Observations</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Defects</div><div class="mv" id="def-total">31</div></div>
-    <div class="mc"><div class="ml">Open</div><div class="mv" style="color:var(--red)" id="def-open">8</div></div>
-    <div class="mc"><div class="ml">In Progress</div><div class="mv" style="color:var(--amber)" id="def-inprog">5</div></div>
-    <div class="mc"><div class="ml">Closed / Rectified</div><div class="mv" style="color:var(--green)" id="def-closed">18</div></div>
-    <div class="mc"><div class="ml">Critical</div><div class="mv" style="color:var(--red)" id="def-crit">2</div></div>
-    <div class="mc"><div class="ml">Major</div><div class="mv" style="color:var(--amber)" id="def-major">6</div></div>
-    <div class="mc"><div class="ml">Minor</div><div class="mv" style="color:var(--blue)" id="def-minor">5</div></div>
+    <div class="mc"><div class="ml">Open</div><div class="mv txt-red" id="def-open">8</div></div>
+    <div class="mc"><div class="ml">In Progress</div><div class="mv txt-amber" id="def-inprog">5</div></div>
+    <div class="mc"><div class="ml">Closed / Rectified</div><div class="mv txt-green" id="def-closed">18</div></div>
+    <div class="mc"><div class="ml">Critical</div><div class="mv txt-red" id="def-crit">2</div></div>
+    <div class="mc"><div class="ml">Major</div><div class="mv txt-amber" id="def-major">6</div></div>
+    <div class="mc"><div class="ml">Minor</div><div class="mv txt-blue" id="def-minor">5</div></div>
     <div class="mc"><div class="ml">Avg Rectification (days)</div><div class="mv" id="def-avg">4.2</div></div>
   </div>
 
@@ -290,15 +204,15 @@ tr:last-child td{border-bottom:none}
     <div class="cc"><div class="ct">Defects by Location (Level)</div><div class="cw"><canvas id="c-def-loc"></canvas></div></div>
   </div>
 
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Defect Register</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-acc">●</span> Defect Register</span><span class="badge badge-acc">ACC</span></div>
   <div class="tbl-controls"><input class="tbl-search" id="def-search" placeholder="Search defects…"></div>
   <table id="def-table">
     <thead><tr><th>ID</th><th>Description</th><th>Location</th><th>Type</th><th>Severity</th><th>Assigned</th><th>Status</th><th>Age</th></tr></thead>
     <tbody>
-      <tr><td class="mono">DEF-031</td><td>Crack in beam soffit</td><td>L6 Grid C4</td><td>Structural</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">Critical</span></td><td>Ahmad K</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>3d</td></tr>
-      <tr><td class="mono">DEF-030</td><td>Hollow tile — bathroom</td><td>L4 Unit 4-12</td><td>Arch</td><td><span class="pill" style="background:#faeeda;color:#854f0b">Major</span></td><td>Rajan S</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">in progress</span></td><td>7d</td></tr>
-      <tr><td class="mono">DEF-029</td><td>Paint peel at window reveal</td><td>L3 Unit 3-08</td><td>Arch</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">Minor</span></td><td>Tan WH</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>10d</td></tr>
-      <tr><td class="mono">DEF-028</td><td>Conduit not properly secured</td><td>L5 Riser</td><td>M&amp;E</td><td><span class="pill" style="background:#faeeda;color:#854f0b">Major</span></td><td>Lim BH</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">closed</span></td><td>—</td></tr>
+      <tr><td class="mono">DEF-031</td><td>Crack in beam soffit</td><td>L6 Grid C4</td><td>Structural</td><td><span class="pill pill-red">Critical</span></td><td>Ahmad K</td><td><span class="pill pill-amber">open</span></td><td>3d</td></tr>
+      <tr><td class="mono">DEF-030</td><td>Hollow tile — bathroom</td><td>L4 Unit 4-12</td><td>Arch</td><td><span class="pill pill-amber">Major</span></td><td>Rajan S</td><td><span class="pill pill-blue">in progress</span></td><td>7d</td></tr>
+      <tr><td class="mono">DEF-029</td><td>Paint peel at window reveal</td><td>L3 Unit 3-08</td><td>Arch</td><td><span class="pill pill-blue">Minor</span></td><td>Tan WH</td><td><span class="pill pill-amber">open</span></td><td>10d</td></tr>
+      <tr><td class="mono">DEF-028</td><td>Conduit not properly secured</td><td>L5 Riser</td><td>M&amp;E</td><td><span class="pill pill-amber">Major</span></td><td>Lim BH</td><td><span class="pill pill-green">closed</span></td><td>—</td></tr>
     </tbody>
   </table></div>
 
@@ -306,9 +220,9 @@ tr:last-child td{border-bottom:none}
   <div class="sh"><span class="st">Punch List</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Items</div><div class="mv" id="pl-total">24</div></div>
-    <div class="mc"><div class="ml">Open</div><div class="mv" style="color:var(--amber)" id="pl-open">9</div></div>
-    <div class="mc"><div class="ml">Completed</div><div class="mv" style="color:var(--green)" id="pl-done">15</div></div>
-    <div class="mc"><div class="ml">Completion Rate</div><div class="mv" style="color:var(--green)" id="pl-rate">63%</div></div>
+    <div class="mc"><div class="ml">Open</div><div class="mv txt-amber" id="pl-open">9</div></div>
+    <div class="mc"><div class="ml">Completed</div><div class="mv txt-green" id="pl-done">15</div></div>
+    <div class="mc"><div class="ml">Completion Rate</div><div class="mv txt-green" id="pl-rate">63%</div></div>
   </div>
 </section>
 
@@ -317,22 +231,22 @@ tr:last-child td{border-bottom:none}
   <div class="ph"><div><div class="pt">Quality Checklists</div><div class="ps">Autodesk Construction Cloud · IDD UC13</div></div><span class="src-pill pill-acc">● ACC</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Checklists</div><div class="mv" id="cl-total">47</div></div>
-    <div class="mc"><div class="ml">Passed</div><div class="mv" style="color:var(--green)" id="cl-passed">32</div></div>
-    <div class="mc"><div class="ml">Failed</div><div class="mv" style="color:var(--red)" id="cl-failed">4</div></div>
-    <div class="mc"><div class="ml">In Progress</div><div class="mv" style="color:var(--blue)" id="cl-inprog">8</div></div>
-    <div class="mc"><div class="ml">Not Started</div><div class="mv" style="color:var(--muted)" id="cl-ns">3</div></div>
-    <div class="mc"><div class="ml">Overdue</div><div class="mv" style="color:var(--red)" id="cl-od">5</div></div>
-    <div class="mc"><div class="ml">Pass Rate</div><div class="mv" style="color:var(--green)" id="cl-rate">84%</div></div>
+    <div class="mc"><div class="ml">Passed</div><div class="mv txt-green" id="cl-passed">32</div></div>
+    <div class="mc"><div class="ml">Failed</div><div class="mv txt-red" id="cl-failed">4</div></div>
+    <div class="mc"><div class="ml">In Progress</div><div class="mv txt-blue" id="cl-inprog">8</div></div>
+    <div class="mc"><div class="ml">Not Started</div><div class="mv txt-muted" id="cl-ns">3</div></div>
+    <div class="mc"><div class="ml">Overdue</div><div class="mv txt-red" id="cl-od">5</div></div>
+    <div class="mc"><div class="ml">Pass Rate</div><div class="mv txt-green" id="cl-rate">84%</div></div>
     <div class="mc"><div class="ml">Avg Items / List</div><div class="mv" id="cl-avg">18</div></div>
   </div>
-  <div class="cc" style="margin-bottom:.9rem"><div class="ct">Pass Rate by Checklist Type (%)</div><div class="cw"><canvas id="c-cl-type"></canvas></div></div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Checklist Log</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
+  <div class="cc mb-card"><div class="ct">Pass Rate by Checklist Type (%)</div><div class="cw"><canvas id="c-cl-type"></canvas></div></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-acc">●</span> Checklist Log</span><span class="badge badge-acc">ACC</span></div>
   <table><thead><tr><th>ID</th><th>Template</th><th>Location</th><th>Inspector</th><th>Items</th><th>Passed</th><th>Status</th><th>Date</th></tr></thead>
   <tbody>
-    <tr><td class="mono">CL-047</td><td>Pre-Pour Structural</td><td>L8 Slab</td><td>Ahmad K</td><td>22</td><td>20</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">passed</span></td><td>2026-06-07</td></tr>
-    <tr><td class="mono">CL-046</td><td>M&amp;E Above-Ceiling</td><td>L5 Corridor</td><td>Lim BH</td><td>16</td><td>12</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">failed</span></td><td>2026-06-06</td></tr>
-    <tr><td class="mono">CL-045</td><td>Architectural Finishing</td><td>L3 Unit 3-01–08</td><td>Rajan S</td><td>30</td><td>27</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">passed</span></td><td>2026-06-05</td></tr>
-    <tr><td class="mono">CL-044</td><td>Pre-Handover Inspection</td><td>L2 Unit 2-04</td><td>Tan WH</td><td>45</td><td>—</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">in progress</span></td><td>2026-06-08</td></tr>
+    <tr><td class="mono">CL-047</td><td>Pre-Pour Structural</td><td>L8 Slab</td><td>Ahmad K</td><td>22</td><td>20</td><td><span class="pill pill-green">passed</span></td><td>2026-06-07</td></tr>
+    <tr><td class="mono">CL-046</td><td>M&amp;E Above-Ceiling</td><td>L5 Corridor</td><td>Lim BH</td><td>16</td><td>12</td><td><span class="pill pill-red">failed</span></td><td>2026-06-06</td></tr>
+    <tr><td class="mono">CL-045</td><td>Architectural Finishing</td><td>L3 Unit 3-01–08</td><td>Rajan S</td><td>30</td><td>27</td><td><span class="pill pill-green">passed</span></td><td>2026-06-05</td></tr>
+    <tr><td class="mono">CL-044</td><td>Pre-Handover Inspection</td><td>L2 Unit 2-04</td><td>Tan WH</td><td>45</td><td>—</td><td><span class="pill pill-blue">in progress</span></td><td>2026-06-08</td></tr>
   </tbody></table></div>
 </section>
 
@@ -341,53 +255,53 @@ tr:last-child td{border-bottom:none}
   <div class="ph"><div><div class="pt">Submittals</div><div class="ps">Autodesk Construction Cloud</div></div><span class="src-pill pill-acc">● ACC</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Submittals</div><div class="mv" id="sub-total">38</div></div>
-    <div class="mc"><div class="ml">Pending Review</div><div class="mv" style="color:var(--amber)" id="sub-pend">6</div></div>
-    <div class="mc"><div class="ml">Approved</div><div class="mv" style="color:var(--green)" id="sub-appr">26</div></div>
-    <div class="mc"><div class="ml">Approved w/ Comments</div><div class="mv" style="color:var(--blue)" id="sub-awc">4</div></div>
-    <div class="mc"><div class="ml">Rejected / Revise</div><div class="mv" style="color:var(--red)" id="sub-rej">2</div></div>
-    <div class="mc"><div class="ml">Overdue</div><div class="mv" style="color:var(--red)" id="sub-od">2</div></div>
+    <div class="mc"><div class="ml">Pending Review</div><div class="mv txt-amber" id="sub-pend">6</div></div>
+    <div class="mc"><div class="ml">Approved</div><div class="mv txt-green" id="sub-appr">26</div></div>
+    <div class="mc"><div class="ml">Approved w/ Comments</div><div class="mv txt-blue" id="sub-awc">4</div></div>
+    <div class="mc"><div class="ml">Rejected / Revise</div><div class="mv txt-red" id="sub-rej">2</div></div>
+    <div class="mc"><div class="ml">Overdue</div><div class="mv txt-red" id="sub-od">2</div></div>
     <div class="mc"><div class="ml">Avg Review Time (days)</div><div class="mv" id="sub-avg">6.3</div></div>
-    <div class="mc"><div class="ml">Approval Rate</div><div class="mv" style="color:var(--green)" id="sub-rate">79%</div></div>
+    <div class="mc"><div class="ml">Approval Rate</div><div class="mv txt-green" id="sub-rate">79%</div></div>
   </div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Submittal Register</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-acc">●</span> Submittal Register</span><span class="badge badge-acc">ACC</span></div>
   <div class="tbl-controls"><input class="tbl-search" id="sub-search" placeholder="Search submittals…"></div>
   <table id="sub-table"><thead><tr><th>ID</th><th>Title</th><th>Spec Section</th><th>Submitted By</th><th>Reviewer</th><th>Status</th><th>Due Date</th></tr></thead>
   <tbody>
-    <tr><td class="mono">SUB-038</td><td>Waterproofing membrane — bathrooms</td><td>07 10 00</td><td>Rajan S</td><td>Tan WH</td><td><span class="pill" style="background:#faeeda;color:#854f0b">pending</span></td><td>2026-06-13</td></tr>
-    <tr><td class="mono">SUB-037</td><td>Rebar shop drawing — L8 slab</td><td>03 20 00</td><td>Ahmad K</td><td>PE Lee</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">overdue</span></td><td>2026-06-04</td></tr>
-    <tr><td class="mono">SUB-036</td><td>Aluminium window samples</td><td>08 50 00</td><td>Lim BH</td><td>Tan WH</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">approved</span></td><td>—</td></tr>
-    <tr><td class="mono">SUB-035</td><td>Electrical panel schedule</td><td>26 20 00</td><td>Lim BH</td><td>PE Ng</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">approved w/ comments</span></td><td>—</td></tr>
+    <tr><td class="mono">SUB-038</td><td>Waterproofing membrane — bathrooms</td><td>07 10 00</td><td>Rajan S</td><td>Tan WH</td><td><span class="pill pill-amber">pending</span></td><td>2026-06-13</td></tr>
+    <tr><td class="mono">SUB-037</td><td>Rebar shop drawing — L8 slab</td><td>03 20 00</td><td>Ahmad K</td><td>PE Lee</td><td><span class="pill pill-red">overdue</span></td><td>2026-06-04</td></tr>
+    <tr><td class="mono">SUB-036</td><td>Aluminium window samples</td><td>08 50 00</td><td>Lim BH</td><td>Tan WH</td><td><span class="pill pill-green">approved</span></td><td>—</td></tr>
+    <tr><td class="mono">SUB-035</td><td>Electrical panel schedule</td><td>26 20 00</td><td>Lim BH</td><td>PE Ng</td><td><span class="pill pill-blue">approved w/ comments</span></td><td>—</td></tr>
   </tbody></table></div>
 </section>
 <!-- ══════════════ ACC: PROGRESS ══════════════ -->
 <section id="tab-acc-progress" class="tab-section">
   <div class="ph"><div><div class="pt">Progress &amp; Schedule</div><div class="ps">Autodesk Construction Cloud · IDD UC9</div></div><span class="src-pill pill-acc">● ACC</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Overall % Complete</div><div class="mv" style="color:var(--blue)" id="pr-overall">67%</div></div>
+    <div class="mc"><div class="ml">Overall % Complete</div><div class="mv txt-blue" id="pr-overall">67%</div></div>
     <div class="mc"><div class="ml">Planned This Month</div><div class="mv" id="pr-planned">72%</div></div>
-    <div class="mc"><div class="ml">Schedule Variance</div><div class="mv" style="color:var(--amber)" id="pr-sv">−5%</div></div>
-    <div class="mc"><div class="ml">Milestones On Track</div><div class="mv" style="color:var(--green)" id="pr-ms-ok">4</div></div>
-    <div class="mc"><div class="ml">Milestones Delayed</div><div class="mv" style="color:var(--red)" id="pr-ms-dl">2</div></div>
-    <div class="mc"><div class="ml">Projected Completion</div><div class="mv" style="font-size:1rem" id="pr-eoc">Dec 2026</div></div>
-    <div class="mc"><div class="ml">Contract Completion</div><div class="mv" style="font-size:1rem">Nov 2026</div></div>
+    <div class="mc"><div class="ml">Schedule Variance</div><div class="mv txt-amber" id="pr-sv">−5%</div></div>
+    <div class="mc"><div class="ml">Milestones On Track</div><div class="mv txt-green" id="pr-ms-ok">4</div></div>
+    <div class="mc"><div class="ml">Milestones Delayed</div><div class="mv txt-red" id="pr-ms-dl">2</div></div>
+    <div class="mc"><div class="ml">Projected Completion</div><div class="mv mv-1rem" id="pr-eoc">Dec 2026</div></div>
+    <div class="mc"><div class="ml">Contract Completion</div><div class="mv mv-1rem">Nov 2026</div></div>
     <div class="mc"><div class="ml">Days Remaining</div><div class="mv" id="pr-days">175</div></div>
   </div>
   <div class="cg">
-    <div class="cc" style="grid-column:1/-1"><div class="ct">Monthly Progress — Planned vs Actual (%)</div><div class="cw"><canvas id="c-prog-line"></canvas></div></div>
+    <div class="cc col-full"><div class="ct">Monthly Progress — Planned vs Actual (%)</div><div class="cw"><canvas id="c-prog-line"></canvas></div></div>
   </div>
   <div class="cg">
     <div class="cc"><div class="ct">Progress by Work Category (%)</div><div class="cw"><canvas id="c-prog-cat"></canvas></div></div>
     <div class="cc"><div class="ct">S-Curve Cumulative Progress</div><div class="cw"><canvas id="c-scurve"></canvas></div></div>
   </div>
   <div class="sh"><span class="st">Milestone Tracker</span></div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Milestones</span><span class="badge" style="background:#fff0e6;color:#b34a00">ACC</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-acc">●</span> Milestones</span><span class="badge badge-acc">ACC</span></div>
   <table><thead><tr><th>Milestone</th><th>Planned Date</th><th>Forecast Date</th><th>Status</th><th>% Done</th></tr></thead>
   <tbody>
-    <tr><td>Structural — Level 5 complete</td><td>2026-04-30</td><td>2026-05-07</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">done</span></td><td>100%</td></tr>
-    <tr><td>Structural — Level 8 complete</td><td>2026-07-31</td><td>2026-08-14</td><td><span class="pill" style="background:#faeeda;color:#854f0b">delayed</span></td><td>62%</td></tr>
-    <tr><td>M&amp;E 1st fix — L1–L4</td><td>2026-06-30</td><td>2026-06-28</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">on track</span></td><td>78%</td></tr>
-    <tr><td>Architectural finishing — L2</td><td>2026-08-31</td><td>2026-09-15</td><td><span class="pill" style="background:#faeeda;color:#854f0b">delayed</span></td><td>35%</td></tr>
-    <tr><td>TOP inspection</td><td>2026-11-30</td><td>2026-12-15</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">on track</span></td><td>—</td></tr>
+    <tr><td>Structural — Level 5 complete</td><td>2026-04-30</td><td>2026-05-07</td><td><span class="pill pill-green">done</span></td><td>100%</td></tr>
+    <tr><td>Structural — Level 8 complete</td><td>2026-07-31</td><td>2026-08-14</td><td><span class="pill pill-amber">delayed</span></td><td>62%</td></tr>
+    <tr><td>M&amp;E 1st fix — L1–L4</td><td>2026-06-30</td><td>2026-06-28</td><td><span class="pill pill-blue">on track</span></td><td>78%</td></tr>
+    <tr><td>Architectural finishing — L2</td><td>2026-08-31</td><td>2026-09-15</td><td><span class="pill pill-amber">delayed</span></td><td>35%</td></tr>
+    <tr><td>TOP inspection</td><td>2026-11-30</td><td>2026-12-15</td><td><span class="pill pill-blue">on track</span></td><td>—</td></tr>
   </tbody></table></div>
 </section>
 
@@ -399,13 +313,13 @@ tr:last-child td{border-bottom:none}
     <div class="info-cell"><div class="ik">Original Budget</div><div class="iv">S$ 40,500,000</div></div>
     <div class="info-cell"><div class="ik">Approved Change Orders</div><div class="iv">S$ 1,500,000</div></div>
     <div class="info-cell"><div class="ik">Revised Budget</div><div class="iv">S$ 42,000,000</div></div>
-    <div class="info-cell"><div class="ik">Billed to Date</div><div class="iv" style="color:var(--blue)">S$ 28,560,000</div></div>
-    <div class="info-cell"><div class="ik">Pending Claims</div><div class="iv" style="color:var(--amber)">S$ 1,200,000</div></div>
-    <div class="info-cell"><div class="ik">Remaining Budget</div><div class="iv" style="color:var(--green)">S$ 12,240,000</div></div>
-    <div class="info-cell"><div class="ik">% Billed</div><div class="iv" style="color:var(--blue)">68%</div></div>
+    <div class="info-cell"><div class="ik">Billed to Date</div><div class="iv txt-blue">S$ 28,560,000</div></div>
+    <div class="info-cell"><div class="ik">Pending Claims</div><div class="iv txt-amber">S$ 1,200,000</div></div>
+    <div class="info-cell"><div class="ik">Remaining Budget</div><div class="iv txt-green">S$ 12,240,000</div></div>
+    <div class="info-cell"><div class="ik">% Billed</div><div class="iv txt-blue">68%</div></div>
     <div class="info-cell"><div class="ik">Cost Performance Index</div><div class="iv">0.97</div></div>
-    <div class="info-cell"><div class="ik">Forecast Final Cost</div><div class="iv" style="color:var(--amber)">S$ 43,200,000</div></div>
-    <div class="info-cell"><div class="ik">Cost Variance</div><div class="iv" style="color:var(--red)">−S$ 1,200,000</div></div>
+    <div class="info-cell"><div class="ik">Forecast Final Cost</div><div class="iv txt-amber">S$ 43,200,000</div></div>
+    <div class="info-cell"><div class="ik">Cost Variance</div><div class="iv txt-red">−S$ 1,200,000</div></div>
     <div class="info-cell"><div class="ik">Pending Change Orders</div><div class="iv">3 items</div></div>
   </div>
   <div class="cg">
@@ -421,30 +335,30 @@ tr:last-child td{border-bottom:none}
     <div class="info-cell"><div class="ik">Weather</div><div class="iv">☁ Partly Cloudy</div></div>
     <div class="info-cell"><div class="ik">Temperature</div><div class="iv">29 °C</div></div>
     <div class="info-cell"><div class="ik">Wind</div><div class="iv">15 km/h NE</div></div>
-    <div class="info-cell"><div class="ik">Site Delay (weather)</div><div class="iv" style="color:var(--green)">None</div></div>
+    <div class="info-cell"><div class="ik">Site Delay (weather)</div><div class="iv txt-green">None</div></div>
     <div class="info-cell"><div class="ik">Total Manpower</div><div class="iv">148</div></div>
     <div class="info-cell"><div class="ik">Subcontractors on Site</div><div class="iv">6</div></div>
     <div class="info-cell"><div class="ik">Equipment Active</div><div class="iv">4 units</div></div>
     <div class="info-cell"><div class="ik">Site Manager</div><div class="iv">Ahmad Kadir</div></div>
   </div>
   <div class="sh"><span class="st">Activities Today</span></div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Daily Activities</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-acc">●</span> Daily Activities</span></div>
   <table><thead><tr><th>Activity</th><th>Location</th><th>Trade</th><th>Workers</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td>Concrete pouring — L8 slab, Zone A</td><td>Level 8</td><td>Concretor</td><td>22</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">in progress</span></td></tr>
-    <tr><td>Formwork striking — L6</td><td>Level 6</td><td>Carpenter</td><td>14</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">in progress</span></td></tr>
-    <tr><td>M&amp;E conduit installation — L4</td><td>Level 4</td><td>Electrician</td><td>8</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">scheduled</span></td></tr>
-    <tr><td>Plastering — L3 units</td><td>Level 3</td><td>Plasterer</td><td>18</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">in progress</span></td></tr>
-    <tr><td>Tile laying — L2 bathrooms</td><td>Level 2</td><td>Tiler</td><td>10</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">in progress</span></td></tr>
+    <tr><td>Concrete pouring — L8 slab, Zone A</td><td>Level 8</td><td>Concretor</td><td>22</td><td><span class="pill pill-green">in progress</span></td></tr>
+    <tr><td>Formwork striking — L6</td><td>Level 6</td><td>Carpenter</td><td>14</td><td><span class="pill pill-green">in progress</span></td></tr>
+    <tr><td>M&amp;E conduit installation — L4</td><td>Level 4</td><td>Electrician</td><td>8</td><td><span class="pill pill-blue">scheduled</span></td></tr>
+    <tr><td>Plastering — L3 units</td><td>Level 3</td><td>Plasterer</td><td>18</td><td><span class="pill pill-green">in progress</span></td></tr>
+    <tr><td>Tile laying — L2 bathrooms</td><td>Level 2</td><td>Tiler</td><td>10</td><td><span class="pill pill-green">in progress</span></td></tr>
   </tbody></table></div>
   <div class="sh"><span class="st">Equipment Log</span></div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--acc)">●</span> Equipment</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-acc">●</span> Equipment</span></div>
   <table><thead><tr><th>Equipment</th><th>Reg / ID</th><th>Operator</th><th>Hours Used</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td>Tower Crane</td><td>TC-01</td><td>Muthu R</td><td>6.5</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">operational</span></td></tr>
-    <tr><td>Concrete Pump</td><td>CP-01</td><td>Lee KW</td><td>4.0</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">operational</span></td></tr>
-    <tr><td>Mobile Scaffold</td><td>MS-03</td><td>—</td><td>8.0</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">in use</span></td></tr>
-    <tr><td>Compactor</td><td>CO-02</td><td>—</td><td>0</td><td><span class="pill" style="background:#faeeda;color:#854f0b">standby</span></td></tr>
+    <tr><td>Tower Crane</td><td>TC-01</td><td>Muthu R</td><td>6.5</td><td><span class="pill pill-green">operational</span></td></tr>
+    <tr><td>Concrete Pump</td><td>CP-01</td><td>Lee KW</td><td>4.0</td><td><span class="pill pill-green">operational</span></td></tr>
+    <tr><td>Mobile Scaffold</td><td>MS-03</td><td>—</td><td>8.0</td><td><span class="pill pill-green">in use</span></td></tr>
+    <tr><td>Compactor</td><td>CO-02</td><td>—</td><td>0</td><td><span class="pill pill-amber">standby</span></td></tr>
   </tbody></table></div>
 </section>
 <!-- ══════════════ QSE: QA/QC ══════════════ -->
@@ -452,26 +366,26 @@ tr:last-child td{border-bottom:none}
   <div class="ph"><div><div class="pt">QA / QC Inspections</div><div class="ps">Insight QSE · kaylim.insightqse.com · IDD UC13</div></div><span class="src-pill pill-qse">● Insight QSE</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Inspections</div><div class="mv" id="qi-total">38</div></div>
-    <div class="mc"><div class="ml">Open</div><div class="mv" style="color:var(--amber)" id="qi-open">11</div></div>
-    <div class="mc"><div class="ml">Closed</div><div class="mv" style="color:var(--green)" id="qi-closed">27</div></div>
-    <div class="mc"><div class="ml">Defects Raised</div><div class="mv" style="color:var(--red)" id="qi-def-raised">43</div></div>
-    <div class="mc"><div class="ml">Defects Rectified</div><div class="mv" style="color:var(--green)" id="qi-def-rect">31</div></div>
-    <div class="mc"><div class="ml">Rectification Rate</div><div class="mv" style="color:var(--green)" id="qi-rect-rate">72%</div></div>
+    <div class="mc"><div class="ml">Open</div><div class="mv txt-amber" id="qi-open">11</div></div>
+    <div class="mc"><div class="ml">Closed</div><div class="mv txt-green" id="qi-closed">27</div></div>
+    <div class="mc"><div class="ml">Defects Raised</div><div class="mv txt-red" id="qi-def-raised">43</div></div>
+    <div class="mc"><div class="ml">Defects Rectified</div><div class="mv txt-green" id="qi-def-rect">31</div></div>
+    <div class="mc"><div class="ml">Rectification Rate</div><div class="mv txt-green" id="qi-rect-rate">72%</div></div>
     <div class="mc"><div class="ml">Pre-Handover Units</div><div class="mv" id="qi-pho-total">16</div></div>
-    <div class="mc"><div class="ml">Pre-Handover Passed</div><div class="mv" style="color:var(--green)" id="qi-pho-pass">10</div></div>
+    <div class="mc"><div class="ml">Pre-Handover Passed</div><div class="mv txt-green" id="qi-pho-pass">10</div></div>
   </div>
   <div class="two-col">
     <div class="cc"><div class="ct">Defects by Type</div><div class="cw"><canvas id="c-qi-type"></canvas></div></div>
     <div class="cc"><div class="ct">Inspection Pass Rate by Stage (%)</div><div class="cw"><canvas id="c-qi-stage"></canvas></div></div>
   </div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--qse)">●</span> Inspection Register</span><span class="badge" style="background:#e6f0ff;color:#003d99">Insight QSE</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-qse">●</span> Inspection Register</span><span class="badge badge-qse">Insight QSE</span></div>
   <table id="qi-table"><thead><tr><th>ID</th><th>Stage</th><th>Type</th><th>Location</th><th>Inspector</th><th>Defects</th><th>Status</th><th>Date</th></tr></thead>
   <tbody>
-    <tr><td class="mono">QSE-038</td><td>Architectural</td><td>Tile Work</td><td>L5 Unit 5-03</td><td>Rajan S</td><td>3</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>2026-06-08</td></tr>
-    <tr><td class="mono">QSE-037</td><td>M&amp;E</td><td>Above-Ceiling</td><td>L4 Corridor</td><td>Lim BH</td><td>1</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">closed</span></td><td>2026-06-07</td></tr>
-    <tr><td class="mono">QSE-036</td><td>Structural</td><td>Rebar Check</td><td>L8 Zone B</td><td>Ahmad K</td><td>5</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>2026-06-06</td></tr>
-    <tr><td class="mono">QSE-035</td><td>Pre-Handover</td><td>Full Unit</td><td>L2 Unit 2-04</td><td>Tan WH</td><td>2</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>2026-06-05</td></tr>
-    <tr><td class="mono">QSE-034</td><td>Architectural</td><td>Plastering</td><td>L3 Corridor</td><td>Rajan S</td><td>0</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">closed</span></td><td>2026-06-04</td></tr>
+    <tr><td class="mono">QSE-038</td><td>Architectural</td><td>Tile Work</td><td>L5 Unit 5-03</td><td>Rajan S</td><td>3</td><td><span class="pill pill-amber">open</span></td><td>2026-06-08</td></tr>
+    <tr><td class="mono">QSE-037</td><td>M&amp;E</td><td>Above-Ceiling</td><td>L4 Corridor</td><td>Lim BH</td><td>1</td><td><span class="pill pill-green">closed</span></td><td>2026-06-07</td></tr>
+    <tr><td class="mono">QSE-036</td><td>Structural</td><td>Rebar Check</td><td>L8 Zone B</td><td>Ahmad K</td><td>5</td><td><span class="pill pill-amber">open</span></td><td>2026-06-06</td></tr>
+    <tr><td class="mono">QSE-035</td><td>Pre-Handover</td><td>Full Unit</td><td>L2 Unit 2-04</td><td>Tan WH</td><td>2</td><td><span class="pill pill-amber">open</span></td><td>2026-06-05</td></tr>
+    <tr><td class="mono">QSE-034</td><td>Architectural</td><td>Plastering</td><td>L3 Corridor</td><td>Rajan S</td><td>0</td><td><span class="pill pill-green">closed</span></td><td>2026-06-04</td></tr>
   </tbody></table></div>
 </section>
 
@@ -481,29 +395,29 @@ tr:last-child td{border-bottom:none}
   <div class="sh"><span class="st">Daily Inspections</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Required Today</div><div class="mv" id="si-req">5</div></div>
-    <div class="mc"><div class="ml">Completed Today</div><div class="mv" style="color:var(--green)" id="si-done">5</div></div>
-    <div class="mc"><div class="ml">Missed This Week</div><div class="mv" style="color:var(--red)" id="si-miss">0</div></div>
-    <div class="mc"><div class="ml">Compliance Rate (7d)</div><div class="mv" style="color:var(--green)" id="si-comp">100%</div></div>
-    <div class="mc"><div class="ml">Issues Found Today</div><div class="mv" style="color:var(--amber)" id="si-found">3</div></div>
-    <div class="mc"><div class="ml">Issues Closed Today</div><div class="mv" style="color:var(--green)" id="si-fixed">2</div></div>
+    <div class="mc"><div class="ml">Completed Today</div><div class="mv txt-green" id="si-done">5</div></div>
+    <div class="mc"><div class="ml">Missed This Week</div><div class="mv txt-red" id="si-miss">0</div></div>
+    <div class="mc"><div class="ml">Compliance Rate (7d)</div><div class="mv txt-green" id="si-comp">100%</div></div>
+    <div class="mc"><div class="ml">Issues Found Today</div><div class="mv txt-amber" id="si-found">3</div></div>
+    <div class="mc"><div class="ml">Issues Closed Today</div><div class="mv txt-green" id="si-fixed">2</div></div>
   </div>
   <div class="sh"><span class="st">Monthly Inspections</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Required This Month</div><div class="mv" id="mi-req">4</div></div>
-    <div class="mc"><div class="ml">Completed</div><div class="mv" style="color:var(--green)" id="mi-done">3</div></div>
-    <div class="mc"><div class="ml">Overdue</div><div class="mv" style="color:var(--red)" id="mi-od">1</div></div>
-    <div class="mc"><div class="ml">Issues Raised (MTD)</div><div class="mv" style="color:var(--amber)" id="mi-raised">14</div></div>
-    <div class="mc"><div class="ml">Issues Closed (MTD)</div><div class="mv" style="color:var(--green)" id="mi-closed">11</div></div>
-    <div class="mc"><div class="ml">Outstanding</div><div class="mv" style="color:var(--red)" id="mi-outstanding">3</div></div>
+    <div class="mc"><div class="ml">Completed</div><div class="mv txt-green" id="mi-done">3</div></div>
+    <div class="mc"><div class="ml">Overdue</div><div class="mv txt-red" id="mi-od">1</div></div>
+    <div class="mc"><div class="ml">Issues Raised (MTD)</div><div class="mv txt-amber" id="mi-raised">14</div></div>
+    <div class="mc"><div class="ml">Issues Closed (MTD)</div><div class="mv txt-green" id="mi-closed">11</div></div>
+    <div class="mc"><div class="ml">Outstanding</div><div class="mv txt-red" id="mi-outstanding">3</div></div>
   </div>
   <div class="sh"><span class="st">Environmental</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Incidents This Month</div><div class="mv" style="color:var(--amber)" id="env-inc">1</div></div>
-    <div class="mc"><div class="ml">Incidents Closed</div><div class="mv" style="color:var(--green)" id="env-closed">0</div></div>
-    <div class="mc"><div class="ml">Category</div><div class="mv" style="font-size:1rem" id="env-cat">Noise</div></div>
-    <div class="mc"><div class="ml">Regulatory Notice</div><div class="mv" style="color:var(--red);font-size:1rem" id="env-notice">1 received</div></div>
-    <div class="mc"><div class="ml">Corrective Actions</div><div class="mv" style="color:var(--amber)" id="env-ca">2</div></div>
-    <div class="mc"><div class="ml">Actions Completed</div><div class="mv" style="color:var(--green)" id="env-done">1</div></div>
+    <div class="mc"><div class="ml">Incidents This Month</div><div class="mv txt-amber" id="env-inc">1</div></div>
+    <div class="mc"><div class="ml">Incidents Closed</div><div class="mv txt-green" id="env-closed">0</div></div>
+    <div class="mc"><div class="ml">Category</div><div class="mv mv-1rem" id="env-cat">Noise</div></div>
+    <div class="mc"><div class="ml">Regulatory Notice</div><div class="mv txt-red mv-1rem" id="env-notice">1 received</div></div>
+    <div class="mc"><div class="ml">Corrective Actions</div><div class="mv txt-amber" id="env-ca">2</div></div>
+    <div class="mc"><div class="ml">Actions Completed</div><div class="mv txt-green" id="env-done">1</div></div>
   </div>
   <div class="cc"><div class="ct">Daily Safety Inspection Compliance — Last 14 Days</div><div class="cw"><canvas id="c-si-trend"></canvas></div></div>
 </section>
@@ -514,33 +428,33 @@ tr:last-child td{border-bottom:none}
   <div class="sh"><span class="st">Non-Conformities (Safety)</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total (MTD)</div><div class="mv" id="nc-total">22</div></div>
-    <div class="mc"><div class="ml">Open</div><div class="mv" style="color:var(--red)" id="nc-open">4</div></div>
-    <div class="mc"><div class="ml">Under Review</div><div class="mv" style="color:var(--amber)" id="nc-review">3</div></div>
-    <div class="mc"><div class="ml">Closed</div><div class="mv" style="color:var(--green)" id="nc-closed">15</div></div>
-    <div class="mc"><div class="ml">Raised This Week</div><div class="mv" style="color:var(--amber)" id="nc-week">2</div></div>
-    <div class="mc"><div class="ml">Repeat Offences</div><div class="mv" style="color:var(--red)" id="nc-repeat">1</div></div>
+    <div class="mc"><div class="ml">Open</div><div class="mv txt-red" id="nc-open">4</div></div>
+    <div class="mc"><div class="ml">Under Review</div><div class="mv txt-amber" id="nc-review">3</div></div>
+    <div class="mc"><div class="ml">Closed</div><div class="mv txt-green" id="nc-closed">15</div></div>
+    <div class="mc"><div class="ml">Raised This Week</div><div class="mv txt-amber" id="nc-week">2</div></div>
+    <div class="mc"><div class="ml">Repeat Offences</div><div class="mv txt-red" id="nc-repeat">1</div></div>
     <div class="mc"><div class="ml">Avg Closure Days</div><div class="mv" id="nc-avg">3.2</div></div>
-    <div class="mc"><div class="ml">Closure Rate</div><div class="mv" style="color:var(--green)" id="nc-rate">79%</div></div>
+    <div class="mc"><div class="ml">Closure Rate</div><div class="mv txt-green" id="nc-rate">79%</div></div>
   </div>
   <div class="two-col">
     <div class="cc"><div class="ct">Non-Conformities by Category</div><div class="cw"><canvas id="c-nc-cat"></canvas></div></div>
     <div class="cc"><div class="ct">Monthly NC Trend</div><div class="cw"><canvas id="c-nc-trend"></canvas></div></div>
   </div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--qse)">●</span> Non-Conformity Register</span><span class="badge" style="background:#e6f0ff;color:#003d99">Insight QSE</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-qse">●</span> Non-Conformity Register</span><span class="badge badge-qse">Insight QSE</span></div>
   <table><thead><tr><th>ID</th><th>Category</th><th>Description</th><th>Location</th><th>Raised By</th><th>Status</th><th>Due</th></tr></thead>
   <tbody>
-    <tr><td class="mono">NC-022</td><td>PPE Violation</td><td>Worker without hard hat — Level 7</td><td>Level 7</td><td>Ahmad K</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>2026-06-10</td></tr>
-    <tr><td class="mono">NC-021</td><td>Housekeeping</td><td>Construction waste blocking emergency exit</td><td>Basement</td><td>Rajan S</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td><td>2026-06-09</td></tr>
-    <tr><td class="mono">NC-020</td><td>Unsafe Scaffolding</td><td>Missing toe board — external scaffold</td><td>East Facade</td><td>Tan WH</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">under review</span></td><td>2026-06-11</td></tr>
-    <tr><td class="mono">NC-019</td><td>Fire Safety</td><td>Fire extinguisher missing — Level 4 plant room</td><td>Level 4</td><td>Ahmad K</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">closed</span></td><td>—</td></tr>
+    <tr><td class="mono">NC-022</td><td>PPE Violation</td><td>Worker without hard hat — Level 7</td><td>Level 7</td><td>Ahmad K</td><td><span class="pill pill-amber">open</span></td><td>2026-06-10</td></tr>
+    <tr><td class="mono">NC-021</td><td>Housekeeping</td><td>Construction waste blocking emergency exit</td><td>Basement</td><td>Rajan S</td><td><span class="pill pill-amber">open</span></td><td>2026-06-09</td></tr>
+    <tr><td class="mono">NC-020</td><td>Unsafe Scaffolding</td><td>Missing toe board — external scaffold</td><td>East Facade</td><td>Tan WH</td><td><span class="pill pill-blue">under review</span></td><td>2026-06-11</td></tr>
+    <tr><td class="mono">NC-019</td><td>Fire Safety</td><td>Fire extinguisher missing — Level 4 plant room</td><td>Level 4</td><td>Ahmad K</td><td><span class="pill pill-green">closed</span></td><td>—</td></tr>
   </tbody></table></div>
   <hr class="divider">
   <div class="sh"><span class="st">Infringement Rectifications</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Infringements</div><div class="mv" id="inf-total">9</div></div>
-    <div class="mc"><div class="ml">Pending Rectification</div><div class="mv" style="color:var(--red)" id="inf-open">2</div></div>
-    <div class="mc"><div class="ml">Rectified</div><div class="mv" style="color:var(--green)" id="inf-done">7</div></div>
-    <div class="mc"><div class="ml">Fines Issued</div><div class="mv" style="color:var(--red)" id="inf-fines">S$1,200</div></div>
+    <div class="mc"><div class="ml">Pending Rectification</div><div class="mv txt-red" id="inf-open">2</div></div>
+    <div class="mc"><div class="ml">Rectified</div><div class="mv txt-green" id="inf-done">7</div></div>
+    <div class="mc"><div class="ml">Fines Issued</div><div class="mv txt-red" id="inf-fines">S$1,200</div></div>
   </div>
 </section>
 
@@ -548,23 +462,23 @@ tr:last-child td{border-bottom:none}
 <section id="tab-qse-ptw" class="tab-section">
   <div class="ph"><div><div class="pt">Permit-to-Work</div><div class="ps">Insight QSE · Electronic PTW System</div></div><span class="src-pill pill-qse">● Insight QSE</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Active Permits Today</div><div class="mv" style="color:var(--blue)" id="ptw-active">4</div></div>
-    <div class="mc"><div class="ml">Expired / Closed</div><div class="mv" style="color:var(--green)" id="ptw-closed">1</div></div>
-    <div class="mc"><div class="ml">Expiring Today</div><div class="mv" style="color:var(--amber)" id="ptw-exptoday">1</div></div>
-    <div class="mc"><div class="ml">Pending Approval</div><div class="mv" style="color:var(--amber)" id="ptw-pend">2</div></div>
+    <div class="mc"><div class="ml">Active Permits Today</div><div class="mv txt-blue" id="ptw-active">4</div></div>
+    <div class="mc"><div class="ml">Expired / Closed</div><div class="mv txt-green" id="ptw-closed">1</div></div>
+    <div class="mc"><div class="ml">Expiring Today</div><div class="mv txt-amber" id="ptw-exptoday">1</div></div>
+    <div class="mc"><div class="ml">Pending Approval</div><div class="mv txt-amber" id="ptw-pend">2</div></div>
     <div class="mc"><div class="ml">Hot Works Permits</div><div class="mv" id="ptw-hot">1</div></div>
     <div class="mc"><div class="ml">Confined Space</div><div class="mv" id="ptw-cs">1</div></div>
     <div class="mc"><div class="ml">Working at Heights</div><div class="mv" id="ptw-wah">1</div></div>
     <div class="mc"><div class="ml">Electrical Isolation</div><div class="mv" id="ptw-elec">1</div></div>
   </div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--qse)">●</span> PTW Register</span><span class="badge" style="background:#e6f0ff;color:#003d99">Insight QSE</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-qse">●</span> PTW Register</span><span class="badge badge-qse">Insight QSE</span></div>
   <table id="ptw-table"><thead><tr><th>Permit No.</th><th>Type</th><th>Work Description</th><th>Location</th><th>Contractor</th><th>Issuer</th><th>Issue Date</th><th>Expiry</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td class="mono">PTW-044</td><td>Hot Works</td><td>Welding — rebar L8</td><td>Level 8</td><td>Sin Hua Metal</td><td>Ahmad K</td><td>2026-06-09</td><td>2026-06-10</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td></tr>
-    <tr><td class="mono">PTW-043</td><td>Confined Space</td><td>Drain inspection — basement</td><td>Basement</td><td>Kay Lim</td><td>Lim BH</td><td>2026-06-09</td><td>2026-06-09</td><td><span class="pill" style="background:#faeeda;color:#854f0b">expiring</span></td></tr>
-    <tr><td class="mono">PTW-042</td><td>Work at Heights</td><td>Facade scaffold erection</td><td>East Face</td><td>APS Scaffold</td><td>Rajan S</td><td>2026-06-08</td><td>2026-06-11</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td></tr>
-    <tr><td class="mono">PTW-041</td><td>Electrical</td><td>MV panel isolation — Level 3</td><td>Level 3</td><td>ETC Electric</td><td>Tan BH</td><td>2026-06-07</td><td>2026-06-07</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">expired</span></td></tr>
-    <tr><td class="mono">PTW-040</td><td>Hot Works</td><td>Pipe welding — L5 riser</td><td>Level 5</td><td>KL Plumbing</td><td>Ahmad K</td><td>2026-06-06</td><td>2026-06-07</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td></tr>
+    <tr><td class="mono">PTW-044</td><td>Hot Works</td><td>Welding — rebar L8</td><td>Level 8</td><td>Sin Hua Metal</td><td>Ahmad K</td><td>2026-06-09</td><td>2026-06-10</td><td><span class="pill pill-green">active</span></td></tr>
+    <tr><td class="mono">PTW-043</td><td>Confined Space</td><td>Drain inspection — basement</td><td>Basement</td><td>Kay Lim</td><td>Lim BH</td><td>2026-06-09</td><td>2026-06-09</td><td><span class="pill pill-amber">expiring</span></td></tr>
+    <tr><td class="mono">PTW-042</td><td>Work at Heights</td><td>Facade scaffold erection</td><td>East Face</td><td>APS Scaffold</td><td>Rajan S</td><td>2026-06-08</td><td>2026-06-11</td><td><span class="pill pill-green">active</span></td></tr>
+    <tr><td class="mono">PTW-041</td><td>Electrical</td><td>MV panel isolation — Level 3</td><td>Level 3</td><td>ETC Electric</td><td>Tan BH</td><td>2026-06-07</td><td>2026-06-07</td><td><span class="pill pill-red">expired</span></td></tr>
+    <tr><td class="mono">PTW-040</td><td>Hot Works</td><td>Pipe welding — L5 riser</td><td>Level 5</td><td>KL Plumbing</td><td>Ahmad K</td><td>2026-06-06</td><td>2026-06-07</td><td><span class="pill pill-green">active</span></td></tr>
   </tbody></table></div>
 </section>
 
@@ -572,9 +486,9 @@ tr:last-child td{border-bottom:none}
 <section id="tab-qse-attendance" class="tab-section">
   <div class="ph"><div><div class="pt">Worker Attendance</div><div class="ps">Insight QSE · PTW Attendance Register · Operational tracking</div></div><span class="src-pill pill-qse">● Insight QSE</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">On Site Today</div><div class="mv" style="color:var(--blue)" id="att-today">148</div></div>
+    <div class="mc"><div class="ml">On Site Today</div><div class="mv txt-blue" id="att-today">148</div></div>
     <div class="mc"><div class="ml">Expected</div><div class="mv" id="att-exp">155</div></div>
-    <div class="mc"><div class="ml">Attendance Rate</div><div class="mv" style="color:var(--amber)" id="att-rate">95.5%</div></div>
+    <div class="mc"><div class="ml">Attendance Rate</div><div class="mv txt-amber" id="att-rate">95.5%</div></div>
     <div class="mc"><div class="ml">Subcontractors</div><div class="mv" id="att-sub">6</div></div>
     <div class="mc"><div class="ml">Kay Lim Direct</div><div class="mv" id="att-direct">32</div></div>
     <div class="mc"><div class="ml">Foreign Workers</div><div class="mv" id="att-fw">116</div></div>
@@ -585,7 +499,7 @@ tr:last-child td{border-bottom:none}
     <div class="cc"><div class="ct">Workers by Trade (Today)</div><div class="cw"><canvas id="c-att-trade"></canvas></div></div>
     <div class="cc"><div class="ct">Daily Attendance — This Week</div><div class="cw"><canvas id="c-att-week"></canvas></div></div>
   </div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--qse)">●</span> Attendance by Subcontractor</span><span class="badge" style="background:#e6f0ff;color:#003d99">Insight QSE</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-qse">●</span> Attendance by Subcontractor</span><span class="badge badge-qse">Insight QSE</span></div>
   <table><thead><tr><th>Subcontractor</th><th>Trade</th><th>Expected</th><th>Present</th><th>Absent</th><th>Rate</th></tr></thead>
   <tbody>
     <tr><td>APS Scaffold Pte Ltd</td><td>Scaffolding</td><td>18</td><td>17</td><td>1</td><td>94%</td></tr>
@@ -602,15 +516,15 @@ tr:last-child td{border-bottom:none}
   <div class="ph"><div><div class="pt">Projects</div><div class="ps">UniCon · app.unicongroup.co · Company —</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Projects</div><div class="mv" id="ucpr-total">4</div></div>
-    <div class="mc"><div class="ml">Active</div><div class="mv" style="color:var(--green)" id="ucpr-active">3</div></div>
-    <div class="mc"><div class="ml">On Hold</div><div class="mv" style="color:var(--amber)" id="ucpr-hold">1</div></div>
-    <div class="mc"><div class="ml">Completed</div><div class="mv" style="color:var(--muted)" id="ucpr-done">0</div></div>
-    <div class="mc"><div class="ml">Avg Progress</div><div class="mv" style="color:var(--blue)" id="ucpr-avg">44%</div></div>
-    <div class="mc"><div class="ml">On-Track Projects</div><div class="mv" style="color:var(--green)" id="ucpr-ok">2</div></div>
-    <div class="mc"><div class="ml">Delayed Projects</div><div class="mv" style="color:var(--red)" id="ucpr-dl">1</div></div>
-    <div class="mc"><div class="ml">Total Contract Value</div><div class="mv" style="font-size:1rem" id="ucpr-val">S$132M</div></div>
+    <div class="mc"><div class="ml">Active</div><div class="mv txt-green" id="ucpr-active">3</div></div>
+    <div class="mc"><div class="ml">On Hold</div><div class="mv txt-amber" id="ucpr-hold">1</div></div>
+    <div class="mc"><div class="ml">Completed</div><div class="mv txt-muted" id="ucpr-done">0</div></div>
+    <div class="mc"><div class="ml">Avg Progress</div><div class="mv txt-blue" id="ucpr-avg">44%</div></div>
+    <div class="mc"><div class="ml">On-Track Projects</div><div class="mv txt-green" id="ucpr-ok">2</div></div>
+    <div class="mc"><div class="ml">Delayed Projects</div><div class="mv txt-red" id="ucpr-dl">1</div></div>
+    <div class="mc"><div class="ml">Total Contract Value</div><div class="mv mv-1rem" id="ucpr-val">S$132M</div></div>
   </div>
-  <div id="uc-project-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.8rem;margin-bottom:1.1rem">
+  <div id="uc-project-cards">
     <!-- injected by JS -->
   </div>
 </section>
@@ -620,26 +534,26 @@ tr:last-child td{border-bottom:none}
   <div class="ph"><div><div class="pt">Tasks</div><div class="ps">UniCon · All Projects</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
     <div class="mc"><div class="ml">Total Tasks</div><div class="mv" id="uct-total">86</div></div>
-    <div class="mc"><div class="ml">Open</div><div class="mv" style="color:var(--amber)" id="uct-open">34</div></div>
-    <div class="mc"><div class="ml">In Progress</div><div class="mv" style="color:var(--blue)" id="uct-ip">18</div></div>
-    <div class="mc"><div class="ml">Completed</div><div class="mv" style="color:var(--green)" id="uct-done">34</div></div>
-    <div class="mc"><div class="ml">Overdue</div><div class="mv" style="color:var(--red)" id="uct-od">7</div></div>
-    <div class="mc"><div class="ml">Due Today</div><div class="mv" style="color:var(--amber)" id="uct-today">5</div></div>
-    <div class="mc"><div class="ml">Due This Week</div><div class="mv" style="color:var(--amber)" id="uct-week">12</div></div>
-    <div class="mc"><div class="ml">Completion Rate</div><div class="mv" style="color:var(--green)" id="uct-rate">40%</div></div>
+    <div class="mc"><div class="ml">Open</div><div class="mv txt-amber" id="uct-open">34</div></div>
+    <div class="mc"><div class="ml">In Progress</div><div class="mv txt-blue" id="uct-ip">18</div></div>
+    <div class="mc"><div class="ml">Completed</div><div class="mv txt-green" id="uct-done">34</div></div>
+    <div class="mc"><div class="ml">Overdue</div><div class="mv txt-red" id="uct-od">7</div></div>
+    <div class="mc"><div class="ml">Due Today</div><div class="mv txt-amber" id="uct-today">5</div></div>
+    <div class="mc"><div class="ml">Due This Week</div><div class="mv txt-amber" id="uct-week">12</div></div>
+    <div class="mc"><div class="ml">Completion Rate</div><div class="mv txt-green" id="uct-rate">40%</div></div>
   </div>
   <div class="two-col">
     <div class="cc"><div class="ct">Tasks by Status</div><div class="cw"><canvas id="c-task-status"></canvas></div></div>
     <div class="cc"><div class="ct">Tasks by Project</div><div class="cw"><canvas id="c-task-proj"></canvas></div></div>
   </div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--unicon)">●</span> Task List</span><span class="badge" style="background:#f3eeff;color:#5b21b6">UniCon</span></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Task List</span><span class="badge badge-unicon">UniCon</span></div>
   <table><thead><tr><th>Task</th><th>Project</th><th>Assigned To</th><th>Priority</th><th>Due Date</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td>Pour L8 slab — Zone A concrete</td><td>Sembawang Block 312</td><td>Ahmad Kadir</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">High</span></td><td>2026-06-09</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">in progress</span></td></tr>
-    <tr><td>Submit M&amp;E as-built drawings</td><td>Sembawang Block 312</td><td>Lim BH</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">High</span></td><td>2026-06-05</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">overdue</span></td></tr>
-    <tr><td>Procure waterproofing membrane</td><td>Jurong West RC Works</td><td>Rajan S</td><td><span class="pill" style="background:#faeeda;color:#854f0b">Med</span></td><td>2026-06-13</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td></tr>
-    <tr><td>Site survey — Tampines PPVC</td><td>Tampines PPVC Block</td><td>Tan WH</td><td><span class="pill" style="background:#faeeda;color:#854f0b">Med</span></td><td>2026-06-15</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td></tr>
-    <tr><td>Update progress photographs</td><td>Sembawang Block 312</td><td>Ahmad K</td><td><span class="pill" style="background:#f1f5f9;color:#64748b">Low</span></td><td>2026-06-10</td><td><span class="pill" style="background:#faeeda;color:#854f0b">open</span></td></tr>
+    <tr><td>Pour L8 slab — Zone A concrete</td><td>Sembawang Block 312</td><td>Ahmad Kadir</td><td><span class="pill pill-red">High</span></td><td>2026-06-09</td><td><span class="pill pill-blue">in progress</span></td></tr>
+    <tr><td>Submit M&amp;E as-built drawings</td><td>Sembawang Block 312</td><td>Lim BH</td><td><span class="pill pill-red">High</span></td><td>2026-06-05</td><td><span class="pill pill-red">overdue</span></td></tr>
+    <tr><td>Procure waterproofing membrane</td><td>Jurong West RC Works</td><td>Rajan S</td><td><span class="pill pill-amber">Med</span></td><td>2026-06-13</td><td><span class="pill pill-amber">open</span></td></tr>
+    <tr><td>Site survey — Tampines PPVC</td><td>Tampines PPVC Block</td><td>Tan WH</td><td><span class="pill pill-amber">Med</span></td><td>2026-06-15</td><td><span class="pill pill-amber">open</span></td></tr>
+    <tr><td>Update progress photographs</td><td>Sembawang Block 312</td><td>Ahmad K</td><td><span class="pill pill-gray">Low</span></td><td>2026-06-10</td><td><span class="pill pill-amber">open</span></td></tr>
   </tbody></table></div>
 </section>
 
@@ -650,10 +564,10 @@ tr:last-child td{border-bottom:none}
     <div class="mc"><div class="ml">Team Members</div><div class="mv" id="tm-members">12</div></div>
     <div class="mc"><div class="ml">Roles</div><div class="mv" id="tm-roles">5</div></div>
     <div class="mc"><div class="ml">Subcon Firms</div><div class="mv" id="tm-sub">8</div></div>
-    <div class="mc"><div class="ml">Active Subcon</div><div class="mv" style="color:var(--green)" id="tm-sub-active">6</div></div>
+    <div class="mc"><div class="ml">Active Subcon</div><div class="mv txt-green" id="tm-sub-active">6</div></div>
   </div>
   <div class="two-col">
-    <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--unicon)">●</span> Kay Lim Team</span></div>
+    <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Kay Lim Team</span></div>
     <table><thead><tr><th>Name</th><th>Role</th><th>Assigned Projects</th><th>Open Tasks</th></tr></thead>
     <tbody>
       <tr><td>Ahmad Kadir</td><td>Site Manager</td><td>3</td><td>9</td></tr>
@@ -662,17 +576,17 @@ tr:last-child td{border-bottom:none}
       <tr><td>Tan Wei Hao</td><td>Project Engineer</td><td>2</td><td>8</td></tr>
       <tr><td>Lee Kim Wah</td><td>Safety Officer</td><td>3</td><td>4</td></tr>
     </tbody></table></div>
-    <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--unicon)">●</span> Subcontractors</span></div>
+    <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Subcontractors</span></div>
     <table><thead><tr><th>Company</th><th>Trade</th><th>Status</th><th>Workers</th></tr></thead>
     <tbody>
-      <tr><td>APS Scaffold Pte Ltd</td><td>Scaffolding</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td><td>17</td></tr>
-      <tr><td>Sin Hua Metal Works</td><td>Structural Steel</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td><td>22</td></tr>
-      <tr><td>ETC Electric Pte Ltd</td><td>Electrical</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td><td>14</td></tr>
-      <tr><td>KL Plumbing &amp; Sanitary</td><td>Plumbing</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td><td>12</td></tr>
-      <tr><td>Beauty Plaster Pte Ltd</td><td>Plastering</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td><td>18</td></tr>
-      <tr><td>SG Tiling Works</td><td>Tiling</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td><td>10</td></tr>
-      <tr><td>Alpha Machinery (Kay Lim)</td><td>Crane / Equipment</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">active</span></td><td>4</td></tr>
-      <tr><td>Pacific Landscaping</td><td>Landscaping</td><td><span class="pill" style="background:#faeeda;color:#854f0b">on hold</span></td><td>0</td></tr>
+      <tr><td>APS Scaffold Pte Ltd</td><td>Scaffolding</td><td><span class="pill pill-green">active</span></td><td>17</td></tr>
+      <tr><td>Sin Hua Metal Works</td><td>Structural Steel</td><td><span class="pill pill-green">active</span></td><td>22</td></tr>
+      <tr><td>ETC Electric Pte Ltd</td><td>Electrical</td><td><span class="pill pill-green">active</span></td><td>14</td></tr>
+      <tr><td>KL Plumbing &amp; Sanitary</td><td>Plumbing</td><td><span class="pill pill-green">active</span></td><td>12</td></tr>
+      <tr><td>Beauty Plaster Pte Ltd</td><td>Plastering</td><td><span class="pill pill-green">active</span></td><td>18</td></tr>
+      <tr><td>SG Tiling Works</td><td>Tiling</td><td><span class="pill pill-green">active</span></td><td>10</td></tr>
+      <tr><td>Alpha Machinery (Kay Lim)</td><td>Crane / Equipment</td><td><span class="pill pill-green">active</span></td><td>4</td></tr>
+      <tr><td>Pacific Landscaping</td><td>Landscaping</td><td><span class="pill pill-amber">on hold</span></td><td>0</td></tr>
     </tbody></table></div>
   </div>
 </section>
@@ -681,39 +595,39 @@ tr:last-child td{border-bottom:none}
 <section id="tab-uc-budget" class="tab-section">
   <div class="ph"><div><div class="pt">Budget</div><div class="ps">UniCon · All Projects</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Total Allocated</div><div class="mv" style="font-size:1rem">S$132M</div></div>
-    <div class="mc"><div class="ml">Total Spent</div><div class="mv" style="color:var(--blue);font-size:1rem">S$49.2M</div></div>
-    <div class="mc"><div class="ml">Remaining</div><div class="mv" style="color:var(--green);font-size:1rem">S$82.8M</div></div>
-    <div class="mc"><div class="ml">Overall Utilisation</div><div class="mv" style="color:var(--blue)">37%</div></div>
-    <div class="mc"><div class="ml">Over Budget Projects</div><div class="mv" style="color:var(--red)" id="bud-over">0</div></div>
-    <div class="mc"><div class="ml">At-Risk Projects</div><div class="mv" style="color:var(--amber)" id="bud-risk">1</div></div>
+    <div class="mc"><div class="ml">Total Allocated</div><div class="mv mv-1rem">S$132M</div></div>
+    <div class="mc"><div class="ml">Total Spent</div><div class="mv txt-blue mv-1rem">S$49.2M</div></div>
+    <div class="mc"><div class="ml">Remaining</div><div class="mv txt-green mv-1rem">S$82.8M</div></div>
+    <div class="mc"><div class="ml">Overall Utilisation</div><div class="mv txt-blue">37%</div></div>
+    <div class="mc"><div class="ml">Over Budget Projects</div><div class="mv txt-red" id="bud-over">0</div></div>
+    <div class="mc"><div class="ml">At-Risk Projects</div><div class="mv txt-amber" id="bud-risk">1</div></div>
   </div>
-  <div class="cc" style="margin-bottom:.9rem"><div class="ct">Budget Utilisation by Project (%)</div><div class="cw"><canvas id="c-bud-util"></canvas></div></div>
-  <div class="tc"><div class="th2"><span class="tt"><span style="color:var(--unicon)">●</span> Budget by Project</span><span class="badge" style="background:#f3eeff;color:#5b21b6">UniCon</span></div>
+  <div class="cc mb-card"><div class="ct">Budget Utilisation by Project (%)</div><div class="cw"><canvas id="c-bud-util"></canvas></div></div>
+  <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Budget by Project</span><span class="badge badge-unicon">UniCon</span></div>
   <table><thead><tr><th>Project</th><th>Allocated (S$M)</th><th>Spent (S$M)</th><th>Remaining (S$M)</th><th>Used %</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td>Sembawang Block 312</td><td>42.0</td><td>28.6</td><td>13.4</td><td>68%</td><td><span class="pill" style="background:#faeeda;color:#854f0b">at risk</span></td></tr>
-    <tr><td>Jurong West RC Works</td><td>58.0</td><td>15.2</td><td>42.8</td><td>26%</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">on track</span></td></tr>
-    <tr><td>Tampines PPVC Block</td><td>32.0</td><td>5.4</td><td>26.6</td><td>17%</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">on track</span></td></tr>
+    <tr><td>Sembawang Block 312</td><td>42.0</td><td>28.6</td><td>13.4</td><td>68%</td><td><span class="pill pill-amber">at risk</span></td></tr>
+    <tr><td>Jurong West RC Works</td><td>58.0</td><td>15.2</td><td>42.8</td><td>26%</td><td><span class="pill pill-green">on track</span></td></tr>
+    <tr><td>Tampines PPVC Block</td><td>32.0</td><td>5.4</td><td>26.6</td><td>17%</td><td><span class="pill pill-green">on track</span></td></tr>
   </tbody></table></div>
 </section>
 
 <!-- ══════════════ POWER BI ══════════════ -->
 <section id="tab-powerbi" class="tab-section">
   <div class="ph"><div><div class="pt">Power BI Reports</div><div class="ps">Embedded from your Power BI workspace</div></div><span class="src-pill pill-pbi">● Power BI</span></div>
-  <div id="pbi-report-list" style="display:none;margin-bottom:1rem">
-    <label style="font-size:.85rem;font-weight:500;margin-right:.5rem">Report:</label>
-    <select id="pbi-report-select" style="font-size:.85rem;padding:.3rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card)"></select>
+  <div id="pbi-report-list">
+    <label class="pbi-label">Report:</label>
+    <select id="pbi-report-select" class="pbi-select"></select>
   </div>
-  <div id="pbi-embed-container" style="width:100%;height:calc(100vh - 220px);min-height:480px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:#fff;display:none"></div>
-  <div id="pbi-setup-guide" class="card" style="padding:1.6rem 2rem;max-width:640px">
-    <h3 style="font-size:1rem;font-weight:600;margin:0 0 1rem">&#128640; Connect Power BI in 3 steps</h3>
-    <ol style="line-height:1.9;font-size:.87rem;color:var(--muted);padding-left:1.2rem">
+  <div id="pbi-embed-container"></div>
+  <div id="pbi-setup-guide" class="card">
+    <h3 class="pbi-h3">&#128640; Connect Power BI in 3 steps</h3>
+    <ol class="pbi-ol">
       <li>Register an Azure AD app at <a href="https://portal.azure.com" target="_blank">portal.azure.com</a> → App registrations → New. Grant: <em>Power BI Service → Dataset.Read.All, Report.Read.All</em>.</li>
       <li>Add the service principal to your Power BI workspace as <em>Member</em>.</li>
       <li>Fill <code>PBI_TENANT_ID</code>, <code>PBI_CLIENT_ID</code>, <code>PBI_CLIENT_SECRET</code>, <code>PBI_WORKSPACE_ID</code>, <code>PBI_REPORT_ID</code> in <code>.env</code>.</li>
     </ol>
-    <p style="font-size:.78rem;color:var(--muted);margin:.7rem 0 0;border-top:1px solid var(--border);padding-top:.65rem">&#128274; Embed tokens generated server-side only — credentials never reach the browser.</p>
+    <p class="pbi-note">&#128274; Embed tokens generated server-side only — credentials never reach the browser.</p>
   </div>
 </section>
 
@@ -721,30 +635,30 @@ tr:last-child td{border-bottom:none}
 <section id="tab-idd-production" class="tab-section">
   <div class="ph"><div><div class="pt">Digital Production</div><div class="ps">IDD QWC1 · Prefab / PPVC element fabrication tracking · UniCon / CBOSS</div></div><span class="src-pill pill-idd">● IDD QWC1</span></div>
   <div class="grid4">
-    <div class="mc"><div class="ml">Total Elements</div><div class="mv" id="dp-total">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dp-total-sub">across all batches</div></div>
-    <div class="mc"><div class="ml">Produced &amp; QC Passed</div><div class="mv" style="color:var(--green)" id="dp-passed">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dp-passed-sub">ready for delivery</div></div>
-    <div class="mc"><div class="ml">In Production</div><div class="mv" style="color:var(--blue)" id="dp-inprod">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dp-inprod-sub">at factory now</div></div>
-    <div class="mc"><div class="ml">Factory NCRs Open</div><div class="mv" style="color:var(--amber)" id="dp-ncr">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dp-ncr-sub">non-conformance reports</div></div>
+    <div class="mc"><div class="ml">Total Elements</div><div class="mv" id="dp-total">—</div><div class="sub-label" id="dp-total-sub">across all batches</div></div>
+    <div class="mc"><div class="ml">Produced &amp; QC Passed</div><div class="mv txt-green" id="dp-passed">—</div><div class="sub-label" id="dp-passed-sub">ready for delivery</div></div>
+    <div class="mc"><div class="ml">In Production</div><div class="mv txt-blue" id="dp-inprod">—</div><div class="sub-label" id="dp-inprod-sub">at factory now</div></div>
+    <div class="mc"><div class="ml">Factory NCRs Open</div><div class="mv txt-amber" id="dp-ncr">—</div><div class="sub-label" id="dp-ncr-sub">non-conformance reports</div></div>
   </div>
   <div class="grid2">
-    <div class="mc"><div class="ml">Production Status by Element Type</div><div style="height:200px"><canvas id="c-dp-status"></canvas></div></div>
-    <div class="mc"><div class="ml">Weekly Production Rate (units)</div><div style="height:200px"><canvas id="c-dp-weekly"></canvas></div></div>
+    <div class="mc"><div class="ml">Production Status by Element Type</div><div class="h-200"><canvas id="c-dp-status"></canvas></div></div>
+    <div class="mc"><div class="ml">Weekly Production Rate (units)</div><div class="h-200"><canvas id="c-dp-weekly"></canvas></div></div>
   </div>
   <div class="grid2">
-    <div class="mc"><div class="ml">Factory QC Pass Rate by Type (%)</div><div style="height:180px"><canvas id="c-dp-qc"></canvas></div></div>
-    <div class="mc"><div class="ml">Production vs Plan (Cumulative)</div><div style="height:180px"><canvas id="c-dp-cumul"></canvas></div></div>
+    <div class="mc"><div class="ml">Factory QC Pass Rate by Type (%)</div><div class="h-180"><canvas id="c-dp-qc"></canvas></div></div>
+    <div class="mc"><div class="ml">Production vs Plan (Cumulative)</div><div class="h-180"><canvas id="c-dp-cumul"></canvas></div></div>
   </div>
   <div class="mc">
     <div class="ml">Element Production Register</div>
-    <div style="overflow-x:auto"><table class="tc" style="width:100%">
+    <div class="ov-x"><table class="tc">
       <thead><tr><th>Batch ID</th><th>Element Type</th><th>Description</th><th>Factory</th><th>Qty Ordered</th><th>Qty Produced</th><th>QC Status</th><th>Target Delivery</th><th>Status</th></tr></thead>
       <tbody id="dp-table-body">
-        <tr><td class="mono">B-001</td><td>PPVC Module</td><td>Typ Floor Unit Type A (Lvl 3–8)</td><td>YTL Precast, JB</td><td>24</td><td>18</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">Passed</span></td><td>2026-06-20</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">In Production</span></td></tr>
-        <tr><td class="mono">B-002</td><td>Precast Wall Panel</td><td>Façade Panel Type FP-2A</td><td>Straits Precast, SG</td><td>60</td><td>60</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">Passed</span></td><td>2026-06-15</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">QC Passed</span></td></tr>
-        <tr><td class="mono">B-003</td><td>PPVC Module</td><td>Typ Floor Unit Type B (Lvl 9–14)</td><td>YTL Precast, JB</td><td>24</td><td>6</td><td><span class="pill" style="background:#faeeda;color:#854f0b">Pending</span></td><td>2026-07-10</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">In Production</span></td></tr>
-        <tr><td class="mono">B-004</td><td>Precast Staircase</td><td>Staircase Flight S-01 (Lvl 1–15)</td><td>Straits Precast, SG</td><td>15</td><td>15</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">Passed</span></td><td>2026-06-12</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">QC Passed</span></td></tr>
-        <tr><td class="mono">B-005</td><td>Precast Beam</td><td>Transfer Beam TB-3 (Podium)</td><td>Straits Precast, SG</td><td>8</td><td>4</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">Failed — Rework</span></td><td>2026-06-25</td><td><span class="pill" style="background:#fcebeb;color:#791f1f">NCR Raised</span></td></tr>
-        <tr><td class="mono">B-006</td><td>PPVC Module</td><td>Roof Plant Room Module</td><td>YTL Precast, JB</td><td>4</td><td>0</td><td>—</td><td>2026-07-30</td><td><span class="pill" style="background:#f1f3f5;color:#6b7280">Not Started</span></td></tr>
+        <tr><td class="mono">B-001</td><td>PPVC Module</td><td>Typ Floor Unit Type A (Lvl 3–8)</td><td>YTL Precast, JB</td><td>24</td><td>18</td><td><span class="pill pill-green">Passed</span></td><td>2026-06-20</td><td><span class="pill pill-blue">In Production</span></td></tr>
+        <tr><td class="mono">B-002</td><td>Precast Wall Panel</td><td>Façade Panel Type FP-2A</td><td>Straits Precast, SG</td><td>60</td><td>60</td><td><span class="pill pill-green">Passed</span></td><td>2026-06-15</td><td><span class="pill pill-green">QC Passed</span></td></tr>
+        <tr><td class="mono">B-003</td><td>PPVC Module</td><td>Typ Floor Unit Type B (Lvl 9–14)</td><td>YTL Precast, JB</td><td>24</td><td>6</td><td><span class="pill pill-amber">Pending</span></td><td>2026-07-10</td><td><span class="pill pill-blue">In Production</span></td></tr>
+        <tr><td class="mono">B-004</td><td>Precast Staircase</td><td>Staircase Flight S-01 (Lvl 1–15)</td><td>Straits Precast, SG</td><td>15</td><td>15</td><td><span class="pill pill-green">Passed</span></td><td>2026-06-12</td><td><span class="pill pill-green">QC Passed</span></td></tr>
+        <tr><td class="mono">B-005</td><td>Precast Beam</td><td>Transfer Beam TB-3 (Podium)</td><td>Straits Precast, SG</td><td>8</td><td>4</td><td><span class="pill pill-red">Failed — Rework</span></td><td>2026-06-25</td><td><span class="pill pill-red">NCR Raised</span></td></tr>
+        <tr><td class="mono">B-006</td><td>PPVC Module</td><td>Roof Plant Room Module</td><td>YTL Precast, JB</td><td>4</td><td>0</td><td>—</td><td>2026-07-30</td><td><span class="pill pill-gray">Not Started</span></td></tr>
       </tbody>
     </table></div>
   </div>
@@ -754,31 +668,31 @@ tr:last-child td{border-bottom:none}
 <section id="tab-idd-logistics" class="tab-section">
   <div class="ph"><div><div class="pt">Digital Logistics</div><div class="ps">IDD QWC1 · Material &amp; module delivery tracking · UniCon / CBOSS</div></div><span class="src-pill pill-idd">● IDD QWC1</span></div>
   <div class="grid4">
-    <div class="mc"><div class="ml">Deliveries Today</div><div class="mv" id="dl-today">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dl-today-sub">scheduled</div></div>
-    <div class="mc"><div class="ml">Completed This Week</div><div class="mv" style="color:var(--green)" id="dl-week">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dl-week-sub">deliveries received</div></div>
-    <div class="mc"><div class="ml">On-Time Rate</div><div class="mv" style="color:var(--blue)" id="dl-ontime">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dl-ontime-sub">this month</div></div>
-    <div class="mc"><div class="ml">Pending Deliveries</div><div class="mv" style="color:var(--amber)" id="dl-pending">—</div><div class="ms" style="font-size:.74rem;color:var(--muted)" id="dl-pending-sub">awaiting confirmation</div></div>
+    <div class="mc"><div class="ml">Deliveries Today</div><div class="mv" id="dl-today">—</div><div class="sub-label" id="dl-today-sub">scheduled</div></div>
+    <div class="mc"><div class="ml">Completed This Week</div><div class="mv txt-green" id="dl-week">—</div><div class="sub-label" id="dl-week-sub">deliveries received</div></div>
+    <div class="mc"><div class="ml">On-Time Rate</div><div class="mv txt-blue" id="dl-ontime">—</div><div class="sub-label" id="dl-ontime-sub">this month</div></div>
+    <div class="mc"><div class="ml">Pending Deliveries</div><div class="mv txt-amber" id="dl-pending">—</div><div class="sub-label" id="dl-pending-sub">awaiting confirmation</div></div>
   </div>
   <div class="grid2">
-    <div class="mc"><div class="ml">Weekly Delivery Performance (Scheduled vs Received)</div><div style="height:200px"><canvas id="c-dl-weekly"></canvas></div></div>
-    <div class="mc"><div class="ml">Deliveries by Category</div><div style="height:200px"><canvas id="c-dl-cat"></canvas></div></div>
+    <div class="mc"><div class="ml">Weekly Delivery Performance (Scheduled vs Received)</div><div class="h-200"><canvas id="c-dl-weekly"></canvas></div></div>
+    <div class="mc"><div class="ml">Deliveries by Category</div><div class="h-200"><canvas id="c-dl-cat"></canvas></div></div>
   </div>
   <div class="grid2">
-    <div class="mc"><div class="ml">On-Time Delivery Rate Trend (%)</div><div style="height:180px"><canvas id="c-dl-ontime"></canvas></div></div>
-    <div class="mc"><div class="ml">Delivery Lead Time by Supplier (days)</div><div style="height:180px"><canvas id="c-dl-lead"></canvas></div></div>
+    <div class="mc"><div class="ml">On-Time Delivery Rate Trend (%)</div><div class="h-180"><canvas id="c-dl-ontime"></canvas></div></div>
+    <div class="mc"><div class="ml">Delivery Lead Time by Supplier (days)</div><div class="h-180"><canvas id="c-dl-lead"></canvas></div></div>
   </div>
   <div class="mc">
     <div class="ml">Delivery Schedule</div>
-    <div style="overflow-x:auto"><table class="tc" style="width:100%">
+    <div class="ov-x"><table class="tc">
       <thead><tr><th>DO No.</th><th>Item / Batch</th><th>Category</th><th>Supplier</th><th>Qty</th><th>Scheduled</th><th>Received</th><th>Crane Slot</th><th>Status</th></tr></thead>
       <tbody id="dl-table-body">
-        <tr><td class="mono">DO-0042</td><td>PPVC Module B-001 Units 1–6</td><td>PPVC Module</td><td>YTL Precast</td><td>6 units</td><td>2026-06-10 07:00</td><td>—</td><td>Crane 1 · 07:00–10:00</td><td><span class="pill" style="background:#e6f0ff;color:#003d99">Scheduled</span></td></tr>
-        <tr><td class="mono">DO-0041</td><td>Rebar Bundle Ref R40-B2</td><td>Structural Steel</td><td>Compact Metal</td><td>12 tonnes</td><td>2026-06-09 13:00</td><td>2026-06-09 13:45</td><td>—</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">Received</span></td></tr>
-        <tr><td class="mono">DO-0040</td><td>Precast Wall Panel B-002 Units 55–60</td><td>Precast Panel</td><td>Straits Precast</td><td>6 panels</td><td>2026-06-09 08:00</td><td>2026-06-09 09:15</td><td>Crane 2 · 08:00–11:00</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">Received</span></td></tr>
-        <tr><td class="mono">DO-0039</td><td>Curtain Wall System CW-3</td><td>Architectural</td><td>Schindler Facades</td><td>1 lot</td><td>2026-06-08 07:00</td><td>2026-06-08 07:30</td><td>Crane 1 · 07:00–09:00</td><td><span class="pill" style="background:#eaf3de;color:#2e7d32">Received</span></td></tr>
-        <tr><td class="mono">DO-0038</td><td>M&amp;E Chilled Water Pipes Pkg 3</td><td>M&amp;E Equipment</td><td>Uni-Air Eng</td><td>1 lot</td><td>2026-06-07 14:00</td><td>2026-06-08 09:00</td><td>—</td><td><span class="pill" style="background:#faeeda;color:#854f0b">Late +1 day</span></td></tr>
-        <tr><td class="mono">DO-0043</td><td>Precast Staircase B-004 Units 13–15</td><td>Precast Panel</td><td>Straits Precast</td><td>3 flights</td><td>2026-06-11 07:00</td><td>—</td><td>Crane 2 · 07:00–10:00</td><td><span class="pill" style="background:#f1f3f5;color:#6b7280">Pending</span></td></tr>
-        <tr><td class="mono">DO-0044</td><td>Waterproofing Membrane Roof</td><td>Materials</td><td>Sika SG</td><td>500 m²</td><td>2026-06-12 10:00</td><td>—</td><td>—</td><td><span class="pill" style="background:#f1f3f5;color:#6b7280">Pending</span></td></tr>
+        <tr><td class="mono">DO-0042</td><td>PPVC Module B-001 Units 1–6</td><td>PPVC Module</td><td>YTL Precast</td><td>6 units</td><td>2026-06-10 07:00</td><td>—</td><td>Crane 1 · 07:00–10:00</td><td><span class="pill pill-blue">Scheduled</span></td></tr>
+        <tr><td class="mono">DO-0041</td><td>Rebar Bundle Ref R40-B2</td><td>Structural Steel</td><td>Compact Metal</td><td>12 tonnes</td><td>2026-06-09 13:00</td><td>2026-06-09 13:45</td><td>—</td><td><span class="pill pill-green">Received</span></td></tr>
+        <tr><td class="mono">DO-0040</td><td>Precast Wall Panel B-002 Units 55–60</td><td>Precast Panel</td><td>Straits Precast</td><td>6 panels</td><td>2026-06-09 08:00</td><td>2026-06-09 09:15</td><td>Crane 2 · 08:00–11:00</td><td><span class="pill pill-green">Received</span></td></tr>
+        <tr><td class="mono">DO-0039</td><td>Curtain Wall System CW-3</td><td>Architectural</td><td>Schindler Facades</td><td>1 lot</td><td>2026-06-08 07:00</td><td>2026-06-08 07:30</td><td>Crane 1 · 07:00–09:00</td><td><span class="pill pill-green">Received</span></td></tr>
+        <tr><td class="mono">DO-0038</td><td>M&amp;E Chilled Water Pipes Pkg 3</td><td>M&amp;E Equipment</td><td>Uni-Air Eng</td><td>1 lot</td><td>2026-06-07 14:00</td><td>2026-06-08 09:00</td><td>—</td><td><span class="pill pill-amber">Late +1 day</span></td></tr>
+        <tr><td class="mono">DO-0043</td><td>Precast Staircase B-004 Units 13–15</td><td>Precast Panel</td><td>Straits Precast</td><td>3 flights</td><td>2026-06-11 07:00</td><td>—</td><td>Crane 2 · 07:00–10:00</td><td><span class="pill pill-gray">Pending</span></td></tr>
+        <tr><td class="mono">DO-0044</td><td>Waterproofing Membrane Roof</td><td>Materials</td><td>Sika SG</td><td>500 m²</td><td>2026-06-12 10:00</td><td>—</td><td>—</td><td><span class="pill pill-gray">Pending</span></td></tr>
       </tbody>
     </table></div>
   </div>
@@ -787,7 +701,7 @@ tr:last-child td{border-bottom:none}
 </main>
 
 <!-- Login overlay — backend API requires a per-user session token -->
-<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.88);z-index:1000;align-items:center;justify-content:center">
+<div id="login-overlay">
   <form class="login-card">
     <h2>Kay Lim Construction Dashboard</h2>
     <p>Sign in to load live data</p>

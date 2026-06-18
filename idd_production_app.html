@@ -15,214 +15,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous"></script>
 <script src="/socket.io/socket.io.js"></script>
-<style>
-:root{
-  --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a;
-  --border:#2e3350; --text:#e2e8f0; --muted:#6b7280;
-  --teal:#0d9488; --teal-dim:#0d948844; --teal-text:#2dd4bf;
-  --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --blue:#3b82f6; --purple:#a855f7;
-  --radius:10px; --card-pad:20px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
-a{color:inherit;text-decoration:none}
+<link rel="stylesheet" href="/idd_production_app.css">
+<!-- style block extracted to idd_production_app.css -->
 
-/* ── Layout ── */
-.shell{display:flex;width:100%;min-height:100vh}
-.sidebar{width:230px;min-width:230px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0 0 24px}
-.main{flex:1;overflow-y:auto;padding:28px 32px}
-@media(max-width:768px){.sidebar{position:fixed;left:-230px;top:0;height:100%;z-index:200;transition:.25s}.sidebar.open{left:0}.main{padding:16px}}
-
-/* ── Sidebar ── */
-.logo{padding:20px 20px 12px;border-bottom:1px solid var(--border);margin-bottom:12px}
-.logo-title{font-size:14px;font-weight:700;color:var(--teal-text);letter-spacing:.5px}
-.logo-sub{font-size:11px;color:var(--muted);margin-top:2px}
-.nav-group{padding:6px 20px 4px;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;font-size:13px;color:var(--muted);border-left:3px solid transparent;transition:.15s}
-.nav-item:hover{color:var(--text);background:var(--surface2)}
-.nav-item.active{color:var(--teal-text);background:var(--teal-dim);border-left-color:var(--teal)}
-.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:1px 6px;min-width:18px;text-align:center}
-.hamburger{display:none;position:fixed;top:12px;left:12px;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;color:var(--text)}
-@media(max-width:768px){.hamburger{display:flex}}
-
-/* ── Page header ── */
-.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-.ph-left .pt{font-size:20px;font-weight:700}
-.ph-left .ps{font-size:13px;color:var(--muted);margin-top:3px}
-.pill{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.5px}
-.pill-idd{background:#0d948822;color:var(--teal-text);border:1px solid #0d948855}
-.pill-status{padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600}
-
-/* ── Sections ── */
-.tab-section{display:none}
-.tab-section.active{display:block}
-
-/* ── KPI grid ── */
-.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:480px){.grid4{grid-template-columns:1fr}}
-.mc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad)}
-.ml{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500}
-.mv{font-size:28px;font-weight:700}
-.ms{font-size:11px;color:var(--muted);margin-top:4px}
-
-/* ── Chart grid ── */
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
-@media(max-width:700px){.grid2{grid-template-columns:1fr}}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad)}
-.chart-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:14px}
-.chart-wrap{position:relative;height:200px}
-
-/* ── Table ── */
-.tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px}
-.tcard-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px}
-.tcard-title{font-size:14px;font-weight:600}
-.controls{display:flex;gap:8px;flex-wrap:wrap}
-input.search{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;width:200px;outline:none}
-input.search:focus{border-color:var(--teal)}
-select.flt{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;cursor:pointer}
-select.flt:focus{border-color:var(--teal)}
-.t{width:100%;border-collapse:collapse}
-.t th{padding:10px 16px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface2)}
-.t td{padding:11px 16px;font-size:13px;border-bottom:1px solid var(--border)}
-.t tr:last-child td{border-bottom:none}
-.t tr:hover td{background:var(--surface2)}
-.t tr.clickable{cursor:pointer}
-.tw{overflow-x:auto}
-
-/* ── Status badges ── */
-.s-badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600}
-.s-not_started{background:#1f2937;color:#9ca3af}
-.s-in_production{background:#1e3a5f;color:#93c5fd}
-.s-pending_qc{background:#3b2f00;color:#fbbf24}
-.s-qc_passed{background:#14532d;color:#4ade80}
-.s-ncr_open{background:#450a0a;color:#fca5a5}
-.s-ready_delivery{background:#1a2e4a;color:#60a5fa}
-.s-delivered{background:#1a1a2e;color:#a78bfa}
-
-/* ── Buttons ── */
-.btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.15s}
-.btn-primary{background:var(--teal);color:#fff}
-.btn-primary:hover{background:#0f766e}
-.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
-.btn-secondary:hover{background:var(--border)}
-.btn-danger{background:#450a0a;color:#fca5a5;border:1px solid #ef444433}
-.btn-danger:hover{background:#ef444422}
-.btn-sm{padding:5px 10px;font-size:12px}
-.btn-group{display:flex;gap:8px;flex-wrap:wrap}
-
-/* ── Element detail ── */
-.detail-header{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad);margin-bottom:16px}
-.detail-id{font-size:22px;font-weight:700;font-family:monospace;color:var(--teal-text);margin-bottom:6px}
-.detail-meta{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
-.detail-meta span strong{color:var(--text)}
-
-/* ── Status stepper ── */
-.stepper{display:flex;gap:0;margin-bottom:24px;overflow-x:auto;padding-bottom:4px}
-.step{flex:1;min-width:90px;text-align:center;position:relative}
-.step::after{content:'';position:absolute;top:14px;left:50%;width:100%;height:2px;background:var(--border);z-index:0}
-.step:last-child::after{display:none}
-.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;position:relative;z-index:1;transition:.2s}
-.step-label{font-size:10px;color:var(--muted);margin-top:5px;display:block}
-.step.done .step-dot{background:var(--teal);border-color:var(--teal);color:#fff}
-.step.done::after{background:var(--teal)}
-.step.active .step-dot{border-color:var(--teal);color:var(--teal-text);box-shadow:0 0 0 4px var(--teal-dim)}
-.step.ncr .step-dot{background:var(--red);border-color:var(--red);color:#fff}
-
-/* ── Checklist ── */
-.checklist{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
-.cl-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.cl-row:last-child{border-bottom:none}
-.cl-code{font-family:monospace;font-size:11px;font-weight:700;color:var(--muted);min-width:36px}
-.cl-desc{flex:1;font-size:13px;min-width:160px}
-.cl-actions{display:flex;gap:6px}
-.cl-btn{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:.15s}
-.cl-btn:hover{color:var(--text)}
-.cl-btn.pass.active{background:#14532d;color:#4ade80;border-color:#22c55e44}
-.cl-btn.fail.active{background:#450a0a;color:#fca5a5;border-color:#ef444444}
-.cl-btn.na.active{background:#1f2937;color:#9ca3af;border-color:#6b728044}
-.cl-result{font-size:11px;font-weight:600}
-.cl-result.pass{color:var(--green)}
-.cl-result.fail{color:var(--red)}
-.cl-result.na{color:var(--muted)}
-.progress-bar-wrap{background:var(--surface2);border-radius:99px;height:6px;overflow:hidden;flex:1;min-width:80px}
-.progress-bar{height:100%;border-radius:99px;background:var(--teal);transition:.3s}
-
-/* ── NCR card ── */
-.ncr-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad);margin-bottom:12px}
-.ncr-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-.ncr-no{font-family:monospace;font-size:12px;font-weight:700;color:var(--amber)}
-.sev-minor{color:var(--amber)}
-.sev-major{color:var(--red)}
-.sev-critical{color:#dc2626;font-weight:700}
-.ncr-body{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:10px}
-.ncr-meta{font-size:11px;color:var(--muted)}
-
-/* ── QR ── */
-.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
-.qr-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px}
-.qr-canvas{background:#fff;padding:8px;border-radius:6px}
-.qr-label{font-size:11px;font-weight:600;font-family:monospace;color:var(--text);text-align:center}
-.qr-status{font-size:10px;color:var(--muted)}
-
-/* ── Scanner ── */
-#scanner-region{width:100%;max-width:400px;margin:0 auto 20px;border-radius:var(--radius);overflow:hidden;border:2px solid var(--teal)}
-.scanner-result{background:var(--surface);border:1px solid var(--teal);border-radius:var(--radius);padding:16px;margin-top:16px;display:none}
-
-/* ── Modal ── */
-.modal-overlay{position:fixed;inset:0;background:#00000099;z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
-.modal-overlay.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
-.modal-title{font-size:16px;font-weight:700;margin-bottom:16px}
-.form-row{margin-bottom:14px}
-.form-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;display:block}
-.form-input,.form-select,.form-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;font-family:inherit}
-.form-textarea{min-height:80px;resize:vertical}
-.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--teal)}
-
-/* ── Toast ── */
-.toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 20px;font-size:13px;font-weight:600;z-index:1000;display:none;align-items:center;gap:10px;box-shadow:0 8px 32px #0008}
-.toast.show{display:flex}
-.toast.success{border-color:var(--teal);color:var(--teal-text)}
-.toast.error{border-color:var(--red);color:#fca5a5}
-
-/* ── Login form ── */
-.login-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2rem;width:330px;box-shadow:0 16px 48px rgba(0,0,0,.6)}
-.login-card h2{margin:0 0 .2rem;font-size:1rem;font-weight:700;color:var(--teal-text)}
-.login-card p{margin:0 0 1.25rem;font-size:.8rem;color:var(--muted)}
-.login-field{width:100%;box-sizing:border-box;margin-bottom:.55rem;padding:.55rem .75rem;border:1px solid var(--border);border-radius:8px;font-size:.88rem;background:var(--surface2);color:var(--text);outline:none;font-family:inherit}
-.login-field:focus{border-color:var(--teal)}
-.login-field::placeholder{color:var(--muted)}
-.login-err{color:#fca5a5;font-size:.78rem;min-height:1.1rem;margin-bottom:.45rem}
-.login-btn{width:100%;padding:.6rem;border:0;border-radius:8px;background:var(--teal);color:#fff;font-size:.9rem;cursor:pointer;font-weight:600;font-family:inherit}
-.login-btn:hover{background:#0f766e}
-
-/* ── Misc ── */
-.empty{padding:48px 24px;text-align:center;color:var(--muted);font-size:14px}
-.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;margin-bottom:16px;padding:6px 0}
-.back-btn:hover{color:var(--text)}
-.divider{height:1px;background:var(--border);margin:20px 0}
-.section-title{font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text)}
-.tag{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11px;padding:2px 8px;color:var(--muted)}
-
-/* ── Live indicator ── */
-.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);margin-right:5px;transition:.3s}
-.live-dot.connected{background:var(--green);box-shadow:0 0 6px var(--green)}
-.live-dot.disconnected{background:var(--red)}
-.live-label{font-size:11px;color:var(--muted)}
-.live-bar{display:flex;align-items:center;padding:8px 20px;border-top:1px solid var(--border);margin-top:auto}
-
-/* ── Activity feed ── */
-.activity-feed{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;z-index:900;pointer-events:none;align-items:center}
-.activity-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:12px;color:var(--text);box-shadow:0 4px 16px #0006;animation:slideUp .3s ease;white-space:nowrap}
-.activity-item.fade-out{animation:fadeOut .5s ease forwards}
-@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeOut{from{opacity:1}to{opacity:0}}
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
-.stat-row:last-child{border-bottom:none}
-.stat-label{color:var(--muted)}
-.stat-value{font-weight:600}
-</style>
 </head>
 <body>
 
@@ -257,7 +52,7 @@ select.flt:focus{border-color:var(--teal)}
   <div class="live-bar">
     <span class="live-dot disconnected" id="live-dot"></span>
     <span class="live-label" id="live-label">Connecting…</span>
-    <a href="#" data-action="logout" class="live-label" style="margin-left:auto;text-decoration:underline">Log out</a>
+    <a href="#" data-action="logout" class="live-label logout-lnk">Log out</a>
   </div>
 </nav>
 
@@ -272,9 +67,9 @@ select.flt:focus{border-color:var(--teal)}
   </div>
   <div class="grid4">
     <div class="mc"><div class="ml">Total Elements</div><div class="mv" id="kpi-total">—</div><div class="ms">All blocks combined</div></div>
-    <div class="mc"><div class="ml">QC Passed + Ready</div><div class="mv" style="color:var(--green)" id="kpi-passed">—</div><div class="ms" id="kpi-pct">—</div></div>
-    <div class="mc"><div class="ml">In Production / Pending QC</div><div class="mv" style="color:var(--blue)" id="kpi-inprod">—</div><div class="ms">Active fabrication</div></div>
-    <div class="mc"><div class="ml">Open NCRs</div><div class="mv" style="color:var(--red)" id="kpi-ncr">—</div><div class="ms">Require resolution</div></div>
+    <div class="mc"><div class="ml">QC Passed + Ready</div><div class="mv txt-green" id="kpi-passed">—</div><div class="ms" id="kpi-pct">—</div></div>
+    <div class="mc"><div class="ml">In Production / Pending QC</div><div class="mv txt-blue" id="kpi-inprod">—</div><div class="ms">Active fabrication</div></div>
+    <div class="mc"><div class="ml">Open NCRs</div><div class="mv txt-red" id="kpi-ncr">—</div><div class="ms">Require resolution</div></div>
   </div>
   <div class="grid2">
     <div class="chart-card"><div class="chart-title">Production Status Breakdown</div><div class="chart-wrap"><canvas id="ch-status"></canvas></div></div>
@@ -282,7 +77,7 @@ select.flt:focus{border-color:var(--teal)}
     <div class="chart-card"><div class="chart-title">Cumulative Progress</div><div class="chart-wrap"><canvas id="ch-cumul"></canvas></div></div>
     <div class="chart-card"><div class="chart-title">Elements by Type</div><div class="chart-wrap"><canvas id="ch-type"></canvas></div></div>
   </div>
-  <div id="last-updated" style="font-size:11px;color:var(--muted);text-align:right"></div>
+  <div id="last-updated" class="last-updated"></div>
 </section>
 
 <!-- ═══════════ ELEMENT REGISTER ═══════════ -->
@@ -317,7 +112,7 @@ select.flt:focus{border-color:var(--teal)}
         <tbody id="el-tbody"></tbody>
       </table>
     </div>
-    <div id="el-empty" class="empty" style="display:none">No elements match the current filters.</div>
+    <div id="el-empty" class="empty">No elements match the current filters.</div>
   </div>
 </section>
 
@@ -346,26 +141,26 @@ select.flt:focus{border-color:var(--teal)}
 <!-- ═══════════ QR SCANNER ═══════════ -->
 <section id="tab-scanner" class="tab-section">
   <div class="ph"><div class="ph-left"><div class="pt">QR Code Scanner</div><div class="ps">Scan element tag to open production record</div></div></div>
-  <div style="max-width:480px">
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Point your camera at an element QR code. The app will open the element record immediately for status update or inspection.</p>
+  <div class="scanner-wrap">
+    <p class="scanner-desc">Point your camera at an element QR code. The app will open the element record immediately for status update or inspection.</p>
     <div id="scanner-region"></div>
-    <div style="text-align:center;margin-bottom:16px">
+    <div class="scanner-btns">
       <button class="btn btn-primary" id="scan-btn" data-action="start-scanner">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:5px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Start Camera Scan
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-sm"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Start Camera Scan
       </button>
-      <button class="btn btn-secondary" id="stop-btn" data-action="stop-scanner" style="display:none">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Stop Scanner
+      <button class="btn btn-secondary" id="stop-btn" data-action="stop-scanner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-sm"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Stop Scanner
       </button>
     </div>
     <div class="scanner-result" id="scan-result">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Scanned element:</div>
-      <div id="scan-id" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--teal-text);margin-bottom:12px"></div>
+      <div class="scan-label">Scanned element:</div>
+      <div id="scan-id"></div>
       <button class="btn btn-primary" data-action="goto-scanned">Open Element Record →</button>
     </div>
-    <div style="margin-top:24px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Or enter Element ID manually:</div>
-      <div style="display:flex;gap:8px">
-        <input class="search" id="manual-id" placeholder="e.g. B301A-L01-WP-001" style="flex:1"/>
+    <div class="manual-input-box">
+      <div class="manual-input-title">Or enter Element ID manually:</div>
+      <div class="flex-gap-8">
+        <input class="search flex-1" id="manual-id" placeholder="e.g. B301A-L01-WP-001"/>
         <button class="btn btn-primary" data-action="goto-manual">Open</button>
       </div>
     </div>
@@ -381,7 +176,7 @@ select.flt:focus{border-color:var(--teal)}
         <option value="Blk 301A">Blk 301A</option><option value="Blk 301B">Blk 301B</option><option value="Blk 302">Blk 302</option>
       </select>
       <button class="btn btn-secondary btn-sm" data-action="print">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-sm"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print
       </button>
     </div>
   </div>
@@ -398,7 +193,7 @@ select.flt:focus{border-color:var(--teal)}
     <div class="modal-title">Update Element Status</div>
     <div class="form-row">
       <label class="form-label">Element</label>
-      <div id="sm-elem-id" style="font-family:monospace;font-size:14px;color:var(--teal-text);font-weight:700"></div>
+      <div id="sm-elem-id" class="modal-elem-id"></div>
     </div>
     <div class="form-row">
       <label class="form-label">New Status</label>
@@ -416,7 +211,7 @@ select.flt:focus{border-color:var(--teal)}
       <label class="form-label">Updated by</label>
       <input class="form-input" id="sm-by" placeholder="Your name" value="Site Engineer"/>
     </div>
-    <div class="btn-group" style="margin-top:8px">
+    <div class="btn-group mt-8">
       <button class="btn btn-primary" data-action="submit-status">Update Status</button>
       <button class="btn btn-secondary" data-close-modal="status-modal">Cancel</button>
     </div>
@@ -429,7 +224,7 @@ select.flt:focus{border-color:var(--teal)}
     <div class="modal-title">Raise New NCR</div>
     <div class="form-row">
       <label class="form-label">Element</label>
-      <div id="nm-elem-id" style="font-family:monospace;font-size:14px;color:var(--teal-text);font-weight:700"></div>
+      <div id="nm-elem-id" class="modal-elem-id"></div>
     </div>
     <div class="form-row">
       <label class="form-label">Non-Conformance Description</label>
@@ -451,7 +246,7 @@ select.flt:focus{border-color:var(--teal)}
       <label class="form-label">Raised by</label>
       <input class="form-input" id="nm-by" placeholder="Your name" value="QC Inspector"/>
     </div>
-    <div class="btn-group" style="margin-top:8px">
+    <div class="btn-group mt-8">
       <button class="btn btn-danger" data-action="submit-ncr">Raise NCR</button>
       <button class="btn btn-secondary" data-close-modal="ncr-modal">Cancel</button>
     </div>
@@ -471,7 +266,7 @@ select.flt:focus{border-color:var(--teal)}
       <label class="form-label">Closed by</label>
       <input class="form-input" id="cnm-by" placeholder="Your name" value="QC Manager"/>
     </div>
-    <div class="btn-group" style="margin-top:8px">
+    <div class="btn-group mt-8">
       <button class="btn btn-primary" data-action="submit-close-ncr">Close NCR</button>
       <button class="btn btn-secondary" data-close-modal="close-ncr-modal">Cancel</button>
     </div>
@@ -482,7 +277,7 @@ select.flt:focus{border-color:var(--teal)}
 <div class="toast" id="toast"></div>
 
 <!-- Login overlay — shown until a valid session token exists -->
-<div id="login-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.9);z-index:1000;align-items:center;justify-content:center">
+<div id="login-overlay">
   <form class="login-card">
     <h2>IDD Digital Production</h2>
     <p>Sign in to continue</p>
@@ -500,4 +295,5 @@ select.flt:focus{border-color:var(--teal)}
 </script>
 </body>
 </html>
+
 
