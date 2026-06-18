@@ -312,41 +312,45 @@ async function loadAll(){
     if(idLog.onTimeTrend&&chDLOntime){chDLOntime.data.datasets[0].data=idLog.onTimeTrend;chDLOntime.update()}
   }
 
-  /* â”€â”€ Power BI reports list â”€â”€ */
+  /* ── Power BI reports list ──
+     Static iframe reports (autoAuth=true) always appear regardless of
+     whether service-principal credentials are configured in .env.       */
+  const STATIC_PBI=[
+    {name:'Yishun BL Issues',_iframe:true,
+     embedUrl:'https://app.powerbi.com/reportEmbed?reportId=987bfdd1-d3d3-44d1-abe3-187a2a782547&autoAuth=true&ctid=d9435327-6413-4355-a52c-8a64ac9d668f'},
+  ];
   const pbiRep=await tryFetch('/api/powerbi-reports',null);
-  if(pbiRep&&(pbiRep.reports||pbiRep.value)){const _r=pbiRep.reports||pbiRep.value;
-    const listEl=document.getElementById('pbi-report-list');
-    const guideEl=document.getElementById('pbi-setup-guide');
-    const embedEl=document.getElementById('pbi-embed-container');
-    const pbiLive=intStatus&&intStatus.pbi&&intStatus.pbi.configured;
-    if(listEl){
-      listEl.innerHTML='';
-      /* Build via DOM + addEventListener: the report id is bound as a JS value,
-         never concatenated into a markup/handler string, so a malicious or
-         compromised report id cannot inject script (DOM XSS). */
-      let firstId=null;
-      _r.forEach((r,i)=>{
-        if(i===0) firstId=r.id;
-        const div=document.createElement('div');
-        div.dataset.reportId=r.id;
-        div.style.cssText='padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s';
-        div.textContent=(r.name==null?'':String(r.name));
-        div.addEventListener('click',()=>{
-          listEl.querySelectorAll('[data-report-id]').forEach(d=>d.style.background='#fff');
-          div.style.background='#e8f0fe';
-          loadPbiReport(r.id);
-        });
-        div.addEventListener('mouseover',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#f0f4ff'});
-        div.addEventListener('mouseout',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#fff'});
-        listEl.appendChild(div);
+  const _dynR=(pbiRep&&(pbiRep.reports||pbiRep.value))||(pbiRep&&pbiRep.value?pbiRep.value:[]);
+  const _allR=[...(Array.isArray(_dynR)?_dynR:[]),...STATIC_PBI];
+  const listEl=document.getElementById('pbi-report-list');
+  const guideEl=document.getElementById('pbi-setup-guide');
+  const embedEl=document.getElementById('pbi-embed-container');
+  const pbiLive=intStatus&&intStatus.pbi&&intStatus.pbi.configured;
+  if(listEl&&_allR.length){
+    listEl.innerHTML='';
+    /* Build via DOM + addEventListener — report ids and URLs are bound as JS
+       values, never concatenated into markup, preventing DOM XSS. */
+    let firstDynId=null,firstIframeUrl=null;
+    _allR.forEach(r=>{
+      if(!r._iframe&&!firstDynId) firstDynId=r.id;
+      if(r._iframe&&!firstIframeUrl) firstIframeUrl=r.embedUrl;
+      const div=document.createElement('div');
+      div.style.cssText='padding:.6rem .9rem;cursor:pointer;border-radius:6px;margin-bottom:.3rem;background:#fff;border:1px solid var(--border);font-size:.84rem;transition:background .12s';
+      div.textContent=(r.name==null?'':String(r.name));
+      div.addEventListener('click',()=>{
+        listEl.querySelectorAll('div[class=””]').forEach(d=>d.style.background='#fff');
+        div.style.background='#e8f0fe';
+        if(r._iframe) loadPbiIframe(r.embedUrl); else loadPbiReport(r.id);
       });
-      listEl.style.display='block';
-      if(pbiLive){
-        if(guideEl) guideEl.style.display='none';
-        if(embedEl) embedEl.style.display='block';
-        if(firstId) loadPbiReport(firstId);  // auto-load first report when credentials are live
-      }
-    }
+      div.addEventListener('mouseover',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#f0f4ff'});
+      div.addEventListener('mouseout',()=>{if(div.style.background!=='#e8f0fe')div.style.background='#fff'});
+      listEl.appendChild(div);
+    });
+    listEl.style.display='block';
+    if(guideEl) guideEl.style.display='none';
+    if(embedEl) embedEl.style.display='block';
+    if(pbiLive&&firstDynId) loadPbiReport(firstDynId);
+    else if(firstIframeUrl)  loadPbiIframe(firstIframeUrl);
   }
 }
 loadAll();
@@ -377,7 +381,26 @@ document.querySelectorAll('.nav-item').forEach(el=>{
   });
 });
 
-/* â”€â”€ Power BI Embedded â”€â”€ */
+/* ── Power BI iframe (autoAuth=true reports) ── */
+window.loadPbiIframe=function(embedUrl){
+  const container=document.getElementById('pbi-embed-container');
+  const guide=document.getElementById('pbi-setup-guide');
+  if(!container)return;
+  container.style.display='block';
+  if(guide) guide.style.display='none';
+  const iframe=document.createElement('iframe');
+  iframe.src=embedUrl;
+  iframe.title='Power BI Report';
+  iframe.width='100%';
+  iframe.height='600';
+  iframe.style.border='none';
+  iframe.style.borderRadius='8px';
+  iframe.setAttribute('allowfullscreen','true');
+  container.innerHTML='';
+  container.appendChild(iframe);
+};
+
+/* ── Power BI Embedded (service-principal) ── */
 async function initPBI(){
   return new Promise(resolve=>{
     if(window.powerbi){resolve();return}
