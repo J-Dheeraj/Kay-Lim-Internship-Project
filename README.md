@@ -112,7 +112,7 @@ Container    Non-root node user; digest-pinned base images
 
 **Explicit static allow-list.** Instead of `express.static(__dirname)`, every client-facing file has its own `sendFile` route. This prevents accidental exposure of `server.js`, `Dockerfile`, `.env`, and other backend files.
 
-**Mock-first vendor integration.** Each vendor integration checks for its credentials at startup and falls back to deterministic mock data when they are absent. `INTEGRATIONS_STRICT=1` (the production default) refuses to start if live credentials are missing — preventing silent mock-data leakage into production.
+**Mock-first vendor integration.** Each vendor integration checks for its credentials and falls back to deterministic mock data when they are absent. `INTEGRATIONS_STRICT=1` (the production default) returns 502 for any request to an integration that is not configured or has failed — preventing silent mock-data responses in production. The server still starts; credential absence is caught at request time, not at boot.
 
 ---
 
@@ -184,7 +184,7 @@ DEPLOY.md                    Deployment and operations runbook
 HANDOVER.md                  Orientation for the next engineer
 ```
 
-Legacy entry points `acc_backend_server.js` and `idd_production_server.js` are retained for reference only and are not used.
+Legacy entry points are archived in `archive/` for reference and are not used.
 
 ---
 

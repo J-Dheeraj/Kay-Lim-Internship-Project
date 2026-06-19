@@ -250,18 +250,30 @@ const UC_PROJECT_STATUSES = new Set(['active','on_hold','completed','cancelled']
 const UC_TASK_STATUSES    = new Set(['open','in_progress','completed','overdue']);
 const UC_PRIORITIES       = new Set(['low','med','medium','high','critical']);
 const UC_SUB_STATUSES     = new Set(['active','on_hold','completed','cancelled']);
-const ISO_DATE_RE         = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00Z');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+function numericField(val, label, min, max, errors) {
+  if (val == null) return;
+  const n = Number(val);
+  if (!isFinite(n)) { errors.push(`${label} must be a number`); return; }
+  if (n < min) errors.push(`${label} must be ≥ ${min}`);
+  if (max != null && n > max) errors.push(`${label} must be ≤ ${max}`);
+}
 
 function validateUcProject({ name, status, progress, budget_sgd, spent_sgd, due_date } = {}) {
   const errors = [];
   if (!name?.trim()) errors.push('name required');
   if (status != null && !UC_PROJECT_STATUSES.has(status))
     errors.push(`status must be one of: ${[...UC_PROJECT_STATUSES].join(', ')}`);
-  if (progress != null && (Number(progress) < 0 || Number(progress) > 100))
-    errors.push('progress must be 0–100');
-  if (budget_sgd != null && Number(budget_sgd) < 0) errors.push('budget_sgd must be ≥ 0');
-  if (spent_sgd  != null && Number(spent_sgd)  < 0) errors.push('spent_sgd must be ≥ 0');
-  if (due_date   != null && !ISO_DATE_RE.test(due_date)) errors.push('due_date must be YYYY-MM-DD');
+  numericField(progress,   'progress',   0, 100, errors);
+  numericField(budget_sgd, 'budget_sgd', 0, null, errors);
+  numericField(spent_sgd,  'spent_sgd',  0, null, errors);
+  if (due_date != null && !isValidDate(due_date)) errors.push('due_date must be a real YYYY-MM-DD date');
   return errors;
 }
 
@@ -273,7 +285,7 @@ function validateUcTask({ title, project_id, priority, status, due_date } = {}) 
     errors.push(`priority must be one of: ${[...UC_PRIORITIES].join(', ')}`);
   if (status != null && !UC_TASK_STATUSES.has(status))
     errors.push(`status must be one of: ${[...UC_TASK_STATUSES].join(', ')}`);
-  if (due_date != null && !ISO_DATE_RE.test(due_date)) errors.push('due_date must be YYYY-MM-DD');
+  if (due_date != null && !isValidDate(due_date)) errors.push('due_date must be a real YYYY-MM-DD date');
   return errors;
 }
 
@@ -719,7 +731,9 @@ app.get('/api/qaqc', (_req, res) => liveOrMock(res, 'qaqc', apsConfigured(),
 // ─────────────────────────────────────────────────────────────────────────────
 // ACC — Progress (mock)
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/progress', (_req, res) => {
+app.get('/api/progress', requireAuth, (_req, res) => {
+  if (STRICT_INTEGRATIONS)
+    return res.status(502).json({ error: 'integration not configured', source: 'progress', _source: 'error' });
   res.json(mock({
     overall: 67, plannedToDate: 72,
     categories: [
@@ -862,18 +876,21 @@ app.post('/api/uc/projects', requireAuth, requireUcAdmin, mutationLimiter, (req,
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(id));
 });
 app.put('/api/uc/projects/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  if (!ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(req.params.id))
-    return res.status(404).json({ error: 'not found' });
+  const before = ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(req.params.id);
+  if (!before) return res.status(404).json({ error: 'not found' });
   const { name, status, progress, budget_sgd, spent_sgd, due_date } = req.body || {};
   const errors = validateUcProject({ name: name || 'placeholder', status, progress, budget_sgd, spent_sgd, due_date });
   const fieldErrors = errors.filter(e => e !== 'name required');
   if (fieldErrors.length) return res.status(400).json({ errors: fieldErrors });
+  const progressNum  = progress   != null ? Number(progress)   : null;
+  const budgetNum    = budget_sgd != null ? Number(budget_sgd) : null;
+  const spentNum     = spent_sgd  != null ? Number(spent_sgd)  : null;
   ucDb.transaction(() => {
     ucDb.prepare(`UPDATE uc_projects SET
       name=COALESCE(?,name), status=COALESCE(?,status), progress=COALESCE(?,progress),
       budget_sgd=COALESCE(?,budget_sgd), spent_sgd=COALESCE(?,spent_sgd), due_date=COALESCE(?,due_date)
-      WHERE id=?`).run(name||null, status||null, progress??null, budget_sgd??null, spent_sgd??null, due_date||null, req.params.id);
-    ucAudit(req, 'project.update', req.params.id);
+      WHERE id=?`).run(name||null, status||null, progressNum, budgetNum, spentNum, due_date||null, req.params.id);
+    ucAudit(req, 'project.update', req.params.id, { before, patch: { name, status, progress, budget_sgd, spent_sgd, due_date } });
   })();
   res.json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(req.params.id));
 });
@@ -919,8 +936,8 @@ app.post('/api/uc/tasks', requireAuth, requireUcAdmin, mutationLimiter, (req, re
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(id));
 });
 app.put('/api/uc/tasks/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  if (!ucDb.prepare('SELECT id FROM uc_tasks WHERE id=?').get(req.params.id))
-    return res.status(404).json({ error: 'not found' });
+  const before = ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(req.params.id);
+  if (!before) return res.status(404).json({ error: 'not found' });
   const { title, project_id, assigned_to, priority, due_date, status } = req.body || {};
   const errors = validateUcTask({ title: title || 'placeholder', project_id: project_id || 'placeholder', priority, status, due_date });
   const fieldErrors = errors.filter(e => e !== 'title required' && e !== 'project_id required');
@@ -930,7 +947,7 @@ app.put('/api/uc/tasks/:id', requireAuth, requireUcAdmin, mutationLimiter, (req,
       title=COALESCE(?,title), project_id=COALESCE(?,project_id), assigned_to=COALESCE(?,assigned_to),
       priority=COALESCE(?,priority), due_date=COALESCE(?,due_date), status=COALESCE(?,status)
       WHERE id=?`).run(title||null, project_id||null, assigned_to||null, priority||null, due_date||null, status||null, req.params.id);
-    ucAudit(req, 'task.update', req.params.id);
+    ucAudit(req, 'task.update', req.params.id, { before, patch: { title, project_id, assigned_to, priority, due_date, status } });
   })();
   res.json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(req.params.id));
 });
@@ -973,13 +990,13 @@ app.post('/api/uc/members', requireAuth, requireUcAdmin, mutationLimiter, (req, 
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(id));
 });
 app.put('/api/uc/members/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  if (!ucDb.prepare('SELECT id FROM uc_members WHERE id=?').get(req.params.id))
-    return res.status(404).json({ error: 'not found' });
+  const before = ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(req.params.id);
+  if (!before) return res.status(404).json({ error: 'not found' });
   const { name, role } = req.body || {};
   ucDb.transaction(() => {
     ucDb.prepare('UPDATE uc_members SET name=COALESCE(?,name), role=COALESCE(?,role) WHERE id=?')
       .run(name||null, role||null, req.params.id);
-    ucAudit(req, 'member.update', req.params.id);
+    ucAudit(req, 'member.update', req.params.id, { before, patch: { name, role } });
   })();
   res.json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(req.params.id));
 });
@@ -1000,27 +1017,32 @@ app.post('/api/uc/subcontractors', requireAuth, requireUcAdmin, mutationLimiter,
   if (!company?.trim()) return res.status(400).json({ errors: ['company required'] });
   if (status != null && !UC_SUB_STATUSES.has(status))
     return res.status(400).json({ errors: [`status must be one of: ${[...UC_SUB_STATUSES].join(', ')}`] });
-  if (Number(workers) < 0) return res.status(400).json({ errors: ['workers must be ≥ 0'] });
+  const wErrors = [];
+  numericField(workers, 'workers', 0, null, wErrors);
+  if (wErrors.length) return res.status(400).json({ errors: wErrors });
   const id = ucId();
   ucDb.transaction(() => {
     ucDb.prepare('INSERT INTO uc_subcontractors (id,company,trade,status,workers) VALUES (?,?,?,?,?)')
-      .run(id, company.trim(), trade, status, Number(workers)||0);
+      .run(id, company.trim(), trade, status, workers != null ? Number(workers) : 0);
     ucAudit(req, 'subcontractor.create', id, { company: company.trim() });
   })();
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(id));
 });
 app.put('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  if (!ucDb.prepare('SELECT id FROM uc_subcontractors WHERE id=?').get(req.params.id))
-    return res.status(404).json({ error: 'not found' });
+  const before = ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(req.params.id);
+  if (!before) return res.status(404).json({ error: 'not found' });
   const { company, trade, status, workers } = req.body || {};
   if (status != null && !UC_SUB_STATUSES.has(status))
     return res.status(400).json({ errors: [`status must be one of: ${[...UC_SUB_STATUSES].join(', ')}`] });
-  if (workers != null && Number(workers) < 0) return res.status(400).json({ errors: ['workers must be ≥ 0'] });
+  const workersErrors = [];
+  numericField(workers, 'workers', 0, null, workersErrors);
+  if (workersErrors.length) return res.status(400).json({ errors: workersErrors });
+  const workersNum = workers != null ? Number(workers) : null;
   ucDb.transaction(() => {
     ucDb.prepare(`UPDATE uc_subcontractors SET company=COALESCE(?,company), trade=COALESCE(?,trade),
       status=COALESCE(?,status), workers=COALESCE(?,workers) WHERE id=?`)
-      .run(company||null, trade||null, status||null, workers??null, req.params.id);
-    ucAudit(req, 'subcontractor.update', req.params.id);
+      .run(company||null, trade||null, status||null, workersNum, req.params.id);
+    ucAudit(req, 'subcontractor.update', req.params.id, { before, patch: { company, trade, status, workers } });
   })();
   res.json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(req.params.id));
 });
@@ -1058,8 +1080,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 app.get('/api/powerbi-embed', async (req, res) => {
   const wsId  = process.env.PBI_WORKSPACE_ID;
   const repId = req.query.reportId || process.env.PBI_REPORT_ID;
-  if (!wsId || !repId)
+  if (!wsId || !repId) {
+    if (STRICT_INTEGRATIONS)
+      return res.status(502).json({ error: 'integration not configured', source: 'powerbi-embed', _source: 'error' });
     return res.json(mock({ note: 'Set PBI_WORKSPACE_ID and PBI_REPORT_ID in .env.' }));
+  }
   if (!UUID_RE.test(repId))
     return res.status(400).json({ ok: false, error: 'Invalid report ID format' });
   if (PBI_ALLOWED.size > 0 && !PBI_ALLOWED.has(repId.toLowerCase()))
@@ -1090,65 +1115,67 @@ app.get('/api/powerbi-embed', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IDD QWC1 — Digital Production + Logistics (mock; replaced by live /api/production/* when configured)
+// IDD QWC1 — Digital Production + Logistics (live when UNICON creds configured; mock otherwise)
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/idd/production', async (_req, res) => {
-  const key = process.env.UNICON_API_KEY;
-  if (key) {
-    try {
+app.get('/api/idd/production', requireAuth, (_req, res) =>
+  liveOrMock(res, 'idd-production',
+    configured('UNICON_API_KEY', 'UNICON_COMPANY_ID'),
+    async () => {
       const base = process.env.UNICON_BASE_URL || 'https://api.unicongroup.co';
       const r = await fetchT(`${base}/api/companies/${process.env.UNICON_COMPANY_ID}/idd/production`,
-        { headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' } });
-      if (r.ok) return res.json(await r.json());
-    } catch { /* fall through */ }
-  }
-  res.json({
-    _source: 'mock', totalElements: 135, qcPassed: 99, inProduction: 28, openNCRs: 4, batches: 6,
-    statusBreakdown: { passed: 99, inProduction: 28, ncr: 4, notStarted: 4 },
-    weeklyRate: { labels:['Wk20','Wk21','Wk22','Wk23','Wk24'], planned:[12,14,14,16,14], actual:[11,13,15,14,12] },
-    cumulPlan: [10,22,38,55,75,98,115], cumulActual: [9,20,36,53,71,null,null],
-    qcPassRates: { types:['PPVC Module','Wall Panel','Staircase','Beam','Column'], rates:[92,100,100,75,95] },
-    batchList: [
-      { id:'B-001', type:'PPVC Module',       factory:'YTL Precast, JB',      ordered:24, produced:18, qcStatus:'Passed',         targetDelivery:'2026-06-20', status:'In Production' },
-      { id:'B-002', type:'Precast Wall Panel', factory:'Straits Precast, SG', ordered:60, produced:60, qcStatus:'Passed',         targetDelivery:'2026-06-15', status:'QC Passed'     },
-      { id:'B-003', type:'PPVC Module',       factory:'YTL Precast, JB',      ordered:24, produced: 6, qcStatus:'Pending',        targetDelivery:'2026-07-10', status:'In Production' },
-      { id:'B-004', type:'Precast Staircase', factory:'Straits Precast, SG',  ordered:15, produced:15, qcStatus:'Passed',         targetDelivery:'2026-06-12', status:'QC Passed'     },
-      { id:'B-005', type:'Precast Beam',      factory:'Straits Precast, SG',  ordered: 8, produced: 4, qcStatus:'Failed - Rework',targetDelivery:'2026-06-25', status:'NCR Raised'    },
-      { id:'B-006', type:'PPVC Module',       factory:'YTL Precast, JB',      ordered: 4, produced: 0, qcStatus:'Not Started',    targetDelivery:'2026-07-30', status:'Not Started'   },
-    ],
-  });
-});
+        { headers: { Authorization: `Bearer ${process.env.UNICON_API_KEY}`, Accept: 'application/json' } });
+      if (!r.ok) throw new Error(`idd/production ${r.status}`);
+      return r.json();
+    },
+    {
+      totalElements: 135, qcPassed: 99, inProduction: 28, openNCRs: 4, batches: 6,
+      statusBreakdown: { passed: 99, inProduction: 28, ncr: 4, notStarted: 4 },
+      weeklyRate: { labels:['Wk20','Wk21','Wk22','Wk23','Wk24'], planned:[12,14,14,16,14], actual:[11,13,15,14,12] },
+      cumulPlan: [10,22,38,55,75,98,115], cumulActual: [9,20,36,53,71,null,null],
+      qcPassRates: { types:['PPVC Module','Wall Panel','Staircase','Beam','Column'], rates:[92,100,100,75,95] },
+      batchList: [
+        { id:'B-001', type:'PPVC Module',       factory:'YTL Precast, JB',      ordered:24, produced:18, qcStatus:'Passed',         targetDelivery:'2026-06-20', status:'In Production' },
+        { id:'B-002', type:'Precast Wall Panel', factory:'Straits Precast, SG', ordered:60, produced:60, qcStatus:'Passed',         targetDelivery:'2026-06-15', status:'QC Passed'     },
+        { id:'B-003', type:'PPVC Module',       factory:'YTL Precast, JB',      ordered:24, produced: 6, qcStatus:'Pending',        targetDelivery:'2026-07-10', status:'In Production' },
+        { id:'B-004', type:'Precast Staircase', factory:'Straits Precast, SG',  ordered:15, produced:15, qcStatus:'Passed',         targetDelivery:'2026-06-12', status:'QC Passed'     },
+        { id:'B-005', type:'Precast Beam',      factory:'Straits Precast, SG',  ordered: 8, produced: 4, qcStatus:'Failed - Rework',targetDelivery:'2026-06-25', status:'NCR Raised'    },
+        { id:'B-006', type:'PPVC Module',       factory:'YTL Precast, JB',      ordered: 4, produced: 0, qcStatus:'Not Started',    targetDelivery:'2026-07-30', status:'Not Started'   },
+      ],
+    }
+  )
+);
 
-app.get('/api/idd/logistics', async (_req, res) => {
-  const key = process.env.UNICON_API_KEY;
-  if (key) {
-    try {
+app.get('/api/idd/logistics', requireAuth, (_req, res) =>
+  liveOrMock(res, 'idd-logistics',
+    configured('UNICON_API_KEY', 'UNICON_COMPANY_ID'),
+    async () => {
       const base = process.env.UNICON_BASE_URL || 'https://api.unicongroup.co';
       const r = await fetchT(`${base}/api/companies/${process.env.UNICON_COMPANY_ID}/idd/logistics`,
-        { headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' } });
-      if (r.ok) return res.json(await r.json());
-    } catch { /* fall through */ }
-  }
-  res.json({
-    _source: 'mock', deliveriesToday: 3, completedThisWeek: 18, onTimeRate: 89, pending: 9,
-    weeklyPerf: { labels:['Wk20','Wk21','Wk22','Wk23','Wk24'], scheduled:[18,21,19,22,20], received:[17,20,19,21,18] },
-    onTimeTrend: [84,88,85,91,89], onTimeTrendLabels: ['Feb','Mar','Apr','May','Jun'],
-    categoryBreakdown: [
-      { category:'PPVC Module', count:18 },{ category:'Precast Panel', count:24 },
-      { category:'Structural Steel', count:15 },{ category:'M&E Equipment', count:22 },
-      { category:'Architectural', count:9 },{ category:'Materials', count:12 },
-    ],
-    deliveries: [
-      { doNo:'DO-0042', item:'PPVC Module B-001 Units 1-6',          category:'PPVC Module',      supplier:'YTL Precast',      qty:'6 units',   scheduled:'2026-06-10 07:00', received:null,               craneSlot:'Crane 1 07:00-10:00', status:'scheduled' },
-      { doNo:'DO-0041', item:'Rebar Bundle Ref R40-B2',              category:'Structural Steel', supplier:'Compact Metal',    qty:'12 tonnes', scheduled:'2026-06-09 13:00', received:'2026-06-09 13:45', craneSlot:null,                  status:'received'  },
-      { doNo:'DO-0040', item:'Precast Wall Panel B-002 Units 55-60', category:'Precast Panel',    supplier:'Straits Precast',  qty:'6 panels',  scheduled:'2026-06-09 08:00', received:'2026-06-09 09:15', craneSlot:'Crane 2 08:00-11:00', status:'received'  },
-      { doNo:'DO-0039', item:'Curtain Wall System CW-3',             category:'Architectural',    supplier:'Schindler Facades',qty:'1 lot',     scheduled:'2026-06-08 07:00', received:'2026-06-08 07:30', craneSlot:'Crane 1 07:00-09:00', status:'received'  },
-      { doNo:'DO-0038', item:'M&E Chilled Water Pipes Pkg 3',        category:'M&E Equipment',    supplier:'Uni-Air Eng',      qty:'1 lot',     scheduled:'2026-06-07 14:00', received:'2026-06-08 09:00', craneSlot:null,                  status:'late'      },
-      { doNo:'DO-0043', item:'Precast Staircase B-004 Units 13-15',  category:'Precast Panel',    supplier:'Straits Precast',  qty:'3 flights', scheduled:'2026-06-11 07:00', received:null,               craneSlot:'Crane 2 07:00-10:00', status:'pending'   },
-      { doNo:'DO-0044', item:'Waterproofing Membrane Roof',          category:'Materials',        supplier:'Sika SG',          qty:'500 sqm',   scheduled:'2026-06-12 10:00', received:null,               craneSlot:null,                  status:'pending'   },
-    ],
-  });
-});
+        { headers: { Authorization: `Bearer ${process.env.UNICON_API_KEY}`, Accept: 'application/json' } });
+      if (!r.ok) throw new Error(`idd/logistics ${r.status}`);
+      return r.json();
+    },
+    {
+      deliveriesToday: 3, completedThisWeek: 18, onTimeRate: 89, pending: 9,
+      weeklyPerf: { labels:['Wk20','Wk21','Wk22','Wk23','Wk24'], scheduled:[18,21,19,22,20], received:[17,20,19,21,18] },
+      onTimeTrend: [84,88,85,91,89], onTimeTrendLabels: ['Feb','Mar','Apr','May','Jun'],
+      categoryBreakdown: [
+        { category:'PPVC Module', count:18 },{ category:'Precast Panel', count:24 },
+        { category:'Structural Steel', count:15 },{ category:'M&E Equipment', count:22 },
+        { category:'Architectural', count:9 },{ category:'Materials', count:12 },
+      ],
+      deliveries: [
+        { doNo:'DO-0042', item:'PPVC Module B-001 Units 1-6',          category:'PPVC Module',      supplier:'YTL Precast',      qty:'6 units',   scheduled:'2026-06-10 07:00', received:null,               craneSlot:'Crane 1 07:00-10:00', status:'scheduled' },
+        { doNo:'DO-0041', item:'Rebar Bundle Ref R40-B2',              category:'Structural Steel', supplier:'Compact Metal',    qty:'12 tonnes', scheduled:'2026-06-09 13:00', received:'2026-06-09 13:45', craneSlot:null,                  status:'received'  },
+        { doNo:'DO-0040', item:'Precast Wall Panel B-002 Units 55-60', category:'Precast Panel',    supplier:'Straits Precast',  qty:'6 panels',  scheduled:'2026-06-09 08:00', received:'2026-06-09 09:15', craneSlot:'Crane 2 08:00-11:00', status:'received'  },
+        { doNo:'DO-0039', item:'Curtain Wall System CW-3',             category:'Architectural',    supplier:'Schindler Facades',qty:'1 lot',     scheduled:'2026-06-08 07:00', received:'2026-06-08 07:30', craneSlot:'Crane 1 07:00-09:00', status:'received'  },
+        { doNo:'DO-0038', item:'M&E Chilled Water Pipes Pkg 3',        category:'M&E Equipment',    supplier:'Uni-Air Eng',      qty:'1 lot',     scheduled:'2026-06-07 14:00', received:'2026-06-08 09:00', craneSlot:null,                  status:'late'      },
+        { doNo:'DO-0043', item:'Precast Staircase B-004 Units 13-15',  category:'Precast Panel',    supplier:'Straits Precast',  qty:'3 flights', scheduled:'2026-06-11 07:00', received:null,               craneSlot:'Crane 2 07:00-10:00', status:'pending'   },
+        { doNo:'DO-0044', item:'Waterproofing Membrane Roof',          category:'Materials',        supplier:'Sika SG',          qty:'500 sqm',   scheduled:'2026-06-12 10:00', received:null,               craneSlot:null,                  status:'pending'   },
+      ],
+    }
+  )
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IDD Production — element register + QC + NCR (real-time, Socket.io)

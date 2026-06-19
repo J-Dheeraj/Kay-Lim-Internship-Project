@@ -107,13 +107,13 @@ curl -fsS https://idd.${DOMAIN}/api/health
 
 ## 4. Users & roles
 
-User management is a CLI inside either container (they share the store):
+User management is a CLI inside the app container:
 
 ```bash
-docker compose exec acc node auth.js add-user <name> <password> \
+docker compose exec app node auth.js add-user <name> <password> \
     [viewer|hr|inspector|pm|pd|gm|management|head_of_it]
-docker compose exec acc node auth.js list-users
-docker compose exec acc node auth.js remove-user <name>
+docker compose exec app node auth.js list-users
+docker compose exec app node auth.js remove-user <name>
 ```
 
 See the README for the role/permission matrix.
@@ -159,7 +159,7 @@ before each `/api/production/reset`.
 - Health: `GET /api/health` on each service — wire to an uptime monitor.
 - Audit integrity: `GET /api/production/audit/verify` (head_of_it) — alert if
   `valid:false`.
-- Logs: `docker compose logs -f acc` / `idd` / `caddy`. For central aggregation,
+- Logs: `docker compose logs -f app` (or `caddy`). For central aggregation,
   point a log driver at your platform (Loki, CloudWatch, etc.).
 
 ## 7. Update / rollback
