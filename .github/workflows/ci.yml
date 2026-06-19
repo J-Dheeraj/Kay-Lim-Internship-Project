@@ -57,10 +57,6 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Rebuild native modules for current Node
         run: npm rebuild better-sqlite3
-      - name: Start server
-        run: npm start &
-      - name: Wait for server
-        run: npx --yes wait-on http://127.0.0.1:3001/api/health --timeout 30000
       - name: Run Playwright smoke tests
         run: npm run smoke
       - name: Upload Playwright report on failure
