@@ -37,6 +37,12 @@ jobs:
   # ── Browser smoke tests (Playwright + Chromium) ───────────────────────────
   smoke:
     runs-on: ubuntu-latest
+    env:
+      # CI-only values — satisfy assertSecureConfig() minimums; not used in production
+      SESSION_SECRET: ci-smoke-session-secret-not-used-in-production-xk9m
+      ADMIN_PASSWORD: ci-smoke-pw-9x2m
+      _SMOKE_PW: ci-smoke-pw-9x2m
+      PORT: 3001
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
@@ -50,16 +56,10 @@ jobs:
         run: npm rebuild better-sqlite3
       - name: Start server
         run: npm start &
-        env:
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          PORT: 3001
       - name: Wait for server
         run: npx --yes wait-on http://127.0.0.1:3001/api/health --timeout 30000
       - name: Run Playwright smoke tests
         run: npm run smoke
-        env:
-          _SMOKE_PW: ${{ secrets.ADMIN_PASSWORD }}
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
