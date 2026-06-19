@@ -433,6 +433,70 @@ app.get('/api/progress', (_req, res) => {
 // Manpower — HR-managed, persisted (SQLite). Read by any authenticated user;
 // only HR (and head_of_it) may update it. This is real managed data, not mock.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─── UniCon internal DB — replaces UniCon API (no public endpoint available) ──
+const ucDb = new Database(path.join(process.env.DATA_DIR || __dirname, 'uc.db'));
+ucDb.pragma('journal_mode = WAL');
+ucDb.exec(`
+  CREATE TABLE IF NOT EXISTS uc_projects (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active',
+    progress INTEGER NOT NULL DEFAULT 0, budget_sgd REAL NOT NULL DEFAULT 0,
+    spent_sgd REAL NOT NULL DEFAULT 0, due_date TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS uc_tasks (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES uc_projects(id),
+    title TEXT NOT NULL, assigned_to TEXT NOT NULL DEFAULT '',
+    priority TEXT NOT NULL DEFAULT 'med', due_date TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS uc_members (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS uc_subcontractors (
+    id TEXT PRIMARY KEY, company TEXT NOT NULL, trade TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active', workers INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+(ucDb.transaction(() => {
+  if (!ucDb.prepare('SELECT 1 FROM uc_projects LIMIT 1').get()) {
+    const ip = ucDb.prepare('INSERT INTO uc_projects (id,name,status,progress,budget_sgd,spent_sgd,due_date) VALUES (?,?,?,?,?,?,?)');
+    ip.run('p1','Sembawang Block 312 (HDB)','active',68,42000000,28560000,'2027-03-31');
+    ip.run('p2','Jurong West RC Frame (MUP)','active',26,15000000,3900000,'2027-12-31');
+    ip.run('p3','Tampines PPVC Residential','active',17,28000000,4760000,'2028-06-30');
+  }
+  if (!ucDb.prepare('SELECT 1 FROM uc_tasks LIMIT 1').get()) {
+    const it = ucDb.prepare('INSERT INTO uc_tasks (id,project_id,title,assigned_to,priority,due_date,status) VALUES (?,?,?,?,?,?,?)');
+    it.run('t1','p1','Install formwork L5 Col C3','Ahmad Fauzi','high','2026-06-10','in_progress');
+    it.run('t2','p1','M&E roughing L4 Zone A','Lim Ah Kow','med','2026-06-11','open');
+    it.run('t3','p2','RC raft foundation pour','Chan Beng Hwa','high','2026-06-08','overdue');
+    it.run('t4','p1','Hoist maintenance check','Wong Kai Feng','low','2026-06-10','open');
+    it.run('t5','p3','PPVC module delivery TT22','Rajan Kumar','med','2026-06-12','open');
+  }
+  if (!ucDb.prepare('SELECT 1 FROM uc_members LIMIT 1').get()) {
+    const im = ucDb.prepare('INSERT INTO uc_members (id,name,role) VALUES (?,?,?)');
+    ['Ahmad Kadir|Site Manager','Lim Boon Huat|M&E Coordinator','Rajan Subramaniam|QA/QC Inspector',
+     'Tan Wei Hao|Project Engineer','Lee Kim Wah|Safety Officer'].forEach((s,i)=>{
+      const [n,r]=s.split('|'); im.run('m'+(i+1),n,r); });
+  }
+  if (!ucDb.prepare('SELECT 1 FROM uc_subcontractors LIMIT 1').get()) {
+    const is = ucDb.prepare('INSERT INTO uc_subcontractors (id,company,trade,status,workers) VALUES (?,?,?,?,?)');
+    [['APS Scaffold Pte Ltd','Scaffolding','active',17],['Sin Hua Metal Works','Structural Steel','active',22],
+     ['ETC Electric Pte Ltd','Electrical','active',14],['KL Plumbing & Sanitary','Plumbing','active',12],
+     ['Beauty Plaster Pte Ltd','Plastering','active',18],['SG Tiling Works','Tiling','active',10],
+     ['Alpha Machinery (Kay Lim)','Crane / Equipment','active',4],['Pacific Landscaping','Landscaping','on_hold',0],
+    ].forEach(([co,tr,st,wk],i)=>is.run('s'+(i+1),co,tr,st,wk));
+  }
+}))();
+function ucId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+function requireUcAdmin(req,res,next){
+  if(!new Set(['pm','pd','gm','management','head_of_it','admin']).has(req.user?.role))
+    return res.status(403).json({error:'pm role or above required'});
+  next();
+}
+
 const mpDb = new Database(process.env.ACC_DB_FILE || path.join(process.env.DATA_DIR || __dirname, 'acc.db'));
 mpDb.pragma('journal_mode = WAL');
 mpDb.exec(`CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -608,66 +672,154 @@ app.get('/api/qse/attendance', (_req, res) => liveOrMock(res, 'qse/attendance',
 //   UNICON_API_KEY=<token from UniCon support>
 //   UNICON_COMPANY_ID=your_unicon_company_id
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/api/unicon/projects', async (_req, res) => {
-  const cid = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
-  return liveOrMock(res, 'unicon/projects',
-    process.env.UNICON_BASE_URL && process.env.UNICON_API_KEY,
-    async () => {
-      const r = await fetchT(`${process.env.UNICON_BASE_URL}/api/companies/${cid}/projects`, {
-        headers: { 'Authorization': `Bearer ${process.env.UNICON_API_KEY}`, 'Accept': 'application/json' }
-      });
-      if (!r.ok) throw new Error(`UniCon projects ${r.status}`);
-      return r.json();
-    },
-    { results: [
-      { id:'p1', name:'Sembawang Block 312 (HDB)',     status:'active',   progress:68, dueDate:'2027-03-31', budget:42_000_000, spent:28_560_000, tasks:{ done:142, total:210 } },
-      { id:'p2', name:'Jurong West RC Frame (MUP)',    status:'active',   progress:26, dueDate:'2027-12-31', budget:15_000_000, spent:3_900_000,  tasks:{ done:38,  total:146 } },
-      { id:'p3', name:'Tampines PPVC Residential',     status:'active',   progress:17, dueDate:'2028-06-30', budget:28_000_000, spent:4_760_000,  tasks:{ done:22,  total:130 } },
-    ] });
+// ─── UniCon Projects ──────────────────────────────────────────────────────────
+const _ucTaskCount = ucDb.prepare(`SELECT project_id, COUNT(*) AS total,
+  SUM(status='completed') AS done FROM uc_tasks GROUP BY project_id`);
+function ucProjectsWithTasks() {
+  const counts = Object.fromEntries(_ucTaskCount.all().map(r=>[r.project_id,r]));
+  return ucDb.prepare('SELECT * FROM uc_projects ORDER BY created_at').all().map(p=>({
+    ...p, tasks:{ done: counts[p.id]?.done||0, total: counts[p.id]?.total||0 }
+  }));
+}
+app.get('/api/unicon/projects', requireAuth, (_req,res)=>{
+  res.json({ results: ucProjectsWithTasks() });
+});
+app.get('/api/uc/projects', requireAuth, (_req,res)=>{
+  res.json({ projects: ucProjectsWithTasks() });
+});
+app.post('/api/uc/projects', requireAuth, requireUcAdmin, (req,res)=>{
+  const { name, status='active', progress=0, budget_sgd=0, spent_sgd=0, due_date=null } = req.body||{};
+  if (!name?.trim()) return res.status(400).json({error:'name required'});
+  const id = ucId();
+  ucDb.prepare('INSERT INTO uc_projects (id,name,status,progress,budget_sgd,spent_sgd,due_date) VALUES (?,?,?,?,?,?,?)')
+    .run(id, name.trim(), status, Number(progress)||0, Number(budget_sgd)||0, Number(spent_sgd)||0, due_date||null);
+  res.status(201).json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(id));
+});
+app.put('/api/uc/projects/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  if (!ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(req.params.id))
+    return res.status(404).json({error:'not found'});
+  const { name, status, progress, budget_sgd, spent_sgd, due_date } = req.body||{};
+  ucDb.prepare(`UPDATE uc_projects SET
+    name=COALESCE(?,name), status=COALESCE(?,status), progress=COALESCE(?,progress),
+    budget_sgd=COALESCE(?,budget_sgd), spent_sgd=COALESCE(?,spent_sgd), due_date=COALESCE(?,due_date)
+    WHERE id=?`).run(name||null, status||null, progress??null, budget_sgd??null, spent_sgd??null, due_date||null, req.params.id);
+  res.json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(req.params.id));
+});
+app.delete('/api/uc/projects/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  ucDb.prepare('DELETE FROM uc_tasks WHERE project_id=?').run(req.params.id);
+  const {changes} = ucDb.prepare('DELETE FROM uc_projects WHERE id=?').run(req.params.id);
+  if (!changes) return res.status(404).json({error:'not found'});
+  res.json({ok:true});
 });
 
-app.get('/api/unicon/tasks', async (_req, res) => {
-  const cid = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
-  return liveOrMock(res, 'unicon/tasks',
-    process.env.UNICON_BASE_URL && process.env.UNICON_API_KEY,
-    async () => {
-      const r = await fetchT(`${process.env.UNICON_BASE_URL}/api/companies/${cid}/tasks`, {
-        headers: { 'Authorization': `Bearer ${process.env.UNICON_API_KEY}`, 'Accept': 'application/json' }
-      });
-      if (!r.ok) throw new Error(`UniCon tasks ${r.status}`);
-      return r.json();
-    },
-    {
-    open: 34, inProgress: 18, completed: 34, overdue: 7, dueToday: 5,
-    tasks: [
-      { id:'t1', name:'Install formwork L5 Col C3', project:'Sembawang', assignedTo:'Ahmad Fauzi',   dueDate:'2026-06-10', status:'inProgress', priority:'high'   },
-      { id:'t2', name:'M&E roughing L4 Zone A',     project:'Sembawang', assignedTo:'Lim Ah Kow',    dueDate:'2026-06-11', status:'open',       priority:'medium' },
-      { id:'t3', name:'RC raft foundation pour',     project:'Jurong',   assignedTo:'Chan Beng Hwa', dueDate:'2026-06-08', status:'overdue',    priority:'high'   },
-      { id:'t4', name:'Hoist maintenance check',    project:'Sembawang', assignedTo:'Wong Kai Feng', dueDate:'2026-06-10', status:'open',       priority:'low'    },
-      { id:'t5', name:'PPVC module delivery TT22',  project:'Tampines',  assignedTo:'Rajan Kumar',   dueDate:'2026-06-12', status:'open',       priority:'medium' },
-    ]
+// ─── UniCon Tasks ─────────────────────────────────────────────────────────────
+function ucTasksWithProject() {
+  return ucDb.prepare(`SELECT t.*, p.name AS project FROM uc_tasks t
+    LEFT JOIN uc_projects p ON p.id=t.project_id ORDER BY t.created_at`).all();
+}
+app.get('/api/unicon/tasks', requireAuth, (_req,res)=>{
+  const tasks = ucTasksWithProject();
+  const today = new Date().toISOString().slice(0,10);
+  res.json({
+    open: tasks.filter(t=>t.status==='open').length,
+    inProgress: tasks.filter(t=>t.status==='in_progress').length,
+    completed: tasks.filter(t=>t.status==='completed').length,
+    overdue: tasks.filter(t=>t.status==='overdue').length,
+    dueToday: tasks.filter(t=>t.due_date===today && t.status!=='completed').length,
+    tasks
+  });
+});
+app.get('/api/uc/tasks', requireAuth, (_req,res)=>res.json({tasks: ucTasksWithProject()}));
+app.post('/api/uc/tasks', requireAuth, requireUcAdmin, (req,res)=>{
+  const { project_id, title, assigned_to='', priority='med', due_date=null, status='open' } = req.body||{};
+  if (!title?.trim()) return res.status(400).json({error:'title required'});
+  if (!project_id || !ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(project_id))
+    return res.status(400).json({error:'valid project_id required'});
+  const id = ucId();
+  ucDb.prepare('INSERT INTO uc_tasks (id,project_id,title,assigned_to,priority,due_date,status) VALUES (?,?,?,?,?,?,?)')
+    .run(id, project_id, title.trim(), assigned_to, priority, due_date||null, status);
+  res.status(201).json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(id));
+});
+app.put('/api/uc/tasks/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  if (!ucDb.prepare('SELECT id FROM uc_tasks WHERE id=?').get(req.params.id))
+    return res.status(404).json({error:'not found'});
+  const { title, project_id, assigned_to, priority, due_date, status } = req.body||{};
+  ucDb.prepare(`UPDATE uc_tasks SET
+    title=COALESCE(?,title), project_id=COALESCE(?,project_id), assigned_to=COALESCE(?,assigned_to),
+    priority=COALESCE(?,priority), due_date=COALESCE(?,due_date), status=COALESCE(?,status)
+    WHERE id=?`).run(title||null, project_id||null, assigned_to||null, priority||null, due_date||null, status||null, req.params.id);
+  res.json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(req.params.id));
+});
+app.delete('/api/uc/tasks/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  const {changes} = ucDb.prepare('DELETE FROM uc_tasks WHERE id=?').run(req.params.id);
+  if (!changes) return res.status(404).json({error:'not found'});
+  res.json({ok:true});
+});
+
+// ─── UniCon Budget (derived from projects) ────────────────────────────────────
+app.get('/api/unicon/budget', requireAuth, (_req,res)=>{
+  const projects = ucDb.prepare('SELECT * FROM uc_projects ORDER BY created_at').all();
+  const totalContract = projects.reduce((s,p)=>s+p.budget_sgd,0);
+  const totalBilled   = projects.reduce((s,p)=>s+p.spent_sgd,0);
+  res.json({
+    totalContract, totalBilled, forecast: totalContract,
+    projects: projects.map(p=>({
+      name: p.name, contract: p.budget_sgd, billed: p.spent_sgd,
+      utilPct: p.budget_sgd>0 ? Math.round(p.spent_sgd/p.budget_sgd*100) : 0
+    }))
   });
 });
 
-app.get('/api/unicon/budget', async (_req, res) => {
-  const cid = process.env.UNICON_COMPANY_ID || 'your_unicon_company_id';
-  return liveOrMock(res, 'unicon/budget',
-    process.env.UNICON_BASE_URL && process.env.UNICON_API_KEY,
-    async () => {
-      const r = await fetchT(`${process.env.UNICON_BASE_URL}/api/companies/${cid}/budget`, {
-        headers: { 'Authorization': `Bearer ${process.env.UNICON_API_KEY}`, 'Accept': 'application/json' }
-      });
-      if (!r.ok) throw new Error(`UniCon budget ${r.status}`);
-      return r.json();
-    },
-    {
-    totalContract: 85_000_000, totalBilled: 37_220_000, forecast: 87_400_000,
-    projects: [
-      { name:'Sembawang Block 312', contract:42_000_000, billed:28_560_000, utilPct:68 },
-      { name:'Jurong West RC',      contract:15_000_000, billed:3_900_000,  utilPct:26 },
-      { name:'Tampines PPVC',       contract:28_000_000, billed:4_760_000,  utilPct:17 },
-    ]
-  });
+// ─── UniCon Team Members ──────────────────────────────────────────────────────
+app.get('/api/uc/members', requireAuth, (_req,res)=>{
+  res.json({members: ucDb.prepare('SELECT * FROM uc_members ORDER BY created_at').all()});
+});
+app.post('/api/uc/members', requireAuth, requireUcAdmin, (req,res)=>{
+  const { name, role='' } = req.body||{};
+  if (!name?.trim()) return res.status(400).json({error:'name required'});
+  const id = ucId();
+  ucDb.prepare('INSERT INTO uc_members (id,name,role) VALUES (?,?,?)').run(id, name.trim(), role);
+  res.status(201).json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(id));
+});
+app.put('/api/uc/members/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  if (!ucDb.prepare('SELECT id FROM uc_members WHERE id=?').get(req.params.id))
+    return res.status(404).json({error:'not found'});
+  const { name, role } = req.body||{};
+  ucDb.prepare('UPDATE uc_members SET name=COALESCE(?,name), role=COALESCE(?,role) WHERE id=?')
+    .run(name||null, role||null, req.params.id);
+  res.json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(req.params.id));
+});
+app.delete('/api/uc/members/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  const {changes} = ucDb.prepare('DELETE FROM uc_members WHERE id=?').run(req.params.id);
+  if (!changes) return res.status(404).json({error:'not found'});
+  res.json({ok:true});
+});
+
+// ─── UniCon Subcontractors ────────────────────────────────────────────────────
+app.get('/api/uc/subcontractors', requireAuth, (_req,res)=>{
+  res.json({subcontractors: ucDb.prepare('SELECT * FROM uc_subcontractors ORDER BY created_at').all()});
+});
+app.post('/api/uc/subcontractors', requireAuth, requireUcAdmin, (req,res)=>{
+  const { company, trade='', status='active', workers=0 } = req.body||{};
+  if (!company?.trim()) return res.status(400).json({error:'company required'});
+  const id = ucId();
+  ucDb.prepare('INSERT INTO uc_subcontractors (id,company,trade,status,workers) VALUES (?,?,?,?,?)')
+    .run(id, company.trim(), trade, status, Number(workers)||0);
+  res.status(201).json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(id));
+});
+app.put('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  if (!ucDb.prepare('SELECT id FROM uc_subcontractors WHERE id=?').get(req.params.id))
+    return res.status(404).json({error:'not found'});
+  const { company, trade, status, workers } = req.body||{};
+  ucDb.prepare(`UPDATE uc_subcontractors SET company=COALESCE(?,company), trade=COALESCE(?,trade),
+    status=COALESCE(?,status), workers=COALESCE(?,workers) WHERE id=?`)
+    .run(company||null, trade||null, status||null, workers??null, req.params.id);
+  res.json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(req.params.id));
+});
+app.delete('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, (req,res)=>{
+  const {changes} = ucDb.prepare('DELETE FROM uc_subcontractors WHERE id=?').run(req.params.id);
+  if (!changes) return res.status(404).json({error:'not found'});
+  res.json({ok:true});
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

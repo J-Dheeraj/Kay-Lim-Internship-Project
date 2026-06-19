@@ -186,5 +186,35 @@ tr:last-child td{border-bottom:none}
 .pbi-index-card-where{font-size:.78rem;color:var(--muted);margin-top:.2rem}
 .pbi-index-dot{width:10px;height:10px;border-radius:50%;background:#f2c811;flex-shrink:0}
 
+/* ── UniCon CRUD UI ── */
+.uc-section-hd{display:flex;align-items:center;justify-content:space-between;padding:.5rem 0 .6rem;margin-bottom:.6rem}
+.uc-add-btn{font-size:.78rem;padding:.35rem .8rem;border-radius:5px;border:1px solid var(--unicon,#7c3aed);color:var(--unicon,#7c3aed);background:transparent;cursor:pointer;transition:background .12s,color .12s}
+.uc-add-btn:hover{background:var(--unicon,#7c3aed);color:#fff}
+.uc-row-actions{display:flex;gap:.4rem;opacity:0;transition:opacity .12s}
+tr:hover .uc-row-actions{opacity:1}
+.uc-btn-edit,.uc-btn-del{font-size:.7rem;padding:.2rem .5rem;border-radius:4px;border:none;cursor:pointer}
+.uc-btn-edit{background:rgba(124,58,237,.12);color:#7c3aed}
+.uc-btn-del{background:rgba(185,28,28,.1);color:#b91c1c}
+
+/* UniCon modal */
+.uc-modal-backdrop{position:fixed;inset:0;background:rgba(10,14,26,.7);z-index:900;display:flex;align-items:center;justify-content:center}
+.uc-modal-card{background:var(--card);border:1px solid var(--border);border-radius:10px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.25)}
+.uc-modal-hd{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 1.4rem .8rem;border-bottom:1px solid var(--border);font-weight:600;font-size:.95rem}
+.uc-modal-close{background:none;border:none;font-size:1.1rem;cursor:pointer;color:var(--muted);line-height:1}
+.uc-modal-close:hover{color:var(--text)}
+#uc-modal-fields{padding:1rem 1.4rem;display:flex;flex-direction:column;gap:.7rem}
+.uc-field label{display:block;font-size:.78rem;font-weight:500;color:var(--muted);margin-bottom:.25rem}
+.uc-field input,.uc-field select{width:100%;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;background:var(--bg);color:var(--text);box-sizing:border-box}
+.uc-field input:focus,.uc-field select:focus{outline:none;border-color:var(--unicon,#7c3aed)}
+.uc-modal-err{margin:0 1.4rem;font-size:.8rem;color:#b91c1c;min-height:1rem}
+.uc-modal-foot{display:flex;justify-content:flex-end;gap:.6rem;padding:.9rem 1.4rem 1.1rem;border-top:1px solid var(--border)}
+.uc-btn-primary{padding:.45rem 1.1rem;border-radius:6px;border:none;background:var(--unicon,#7c3aed);color:#fff;font-size:.85rem;font-weight:500;cursor:pointer}
+.uc-btn-primary:hover{opacity:.88}
+.uc-btn-secondary{padding:.45rem 1.1rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.85rem;cursor:pointer}
+.uc-project-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.2rem;margin-bottom:.7rem}
+.uc-project-card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+.uc-project-card-name{font-weight:600;font-size:.92rem}
+.uc-project-card-foot{font-size:.78rem;color:var(--muted);margin-top:.5rem}
+
 /* Login overlay */
 #login-overlay{display:none;position:fixed;inset:0;background:rgba(10,14,26,.88);z-index:1000;align-items:center;justify-content:center}

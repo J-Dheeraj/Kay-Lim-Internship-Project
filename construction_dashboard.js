@@ -56,17 +56,300 @@ function T(name,el){
 function refreshTime(){setEl('lastSync',new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit'}))}
 refreshTime();setInterval(refreshTime,60000);
 
-/* â”€â”€ UniCon project cards â”€â”€ */
-function renderProjects(results){
-  const el=document.getElementById('uc-projects-grid');
-  if(!el||!results)return;
-  el.innerHTML=results.map(p=>{
-    const barCls=p.progress>=70?'pb-green':p.progress>=40?'pb-blue':'pb-amber';
-    const pillCls=p.status==='active'?'pill-green':'pill-amber';
-    return'<div class=”mc mc-pad”><div class=”mc-hd”><span class=”mc-name”>'+esc(p.name)+'</span><span class=”pill '+pillCls+'”>'+esc(p.status)+'</span></div><div class=”pbw”><div class=”pb '+barCls+'” data-pb-w=”'+p.progress+'%”></div></div><div class=”mc-foot”>'+p.progress+'% \xb7 '+(p.tasks?p.tasks.done+'/'+p.tasks.total:0)+' tasks \xb7 Due '+(p.dueDate||'—')+'</div></div>';
-  }).join('');
-  el.querySelectorAll('.pb[data-pb-w]').forEach(b=>{b.style.width=b.dataset.pbW;});
+/* ══════════════════════════════════════════════════════════════
+   UniCon — local data store (no third-party API)
+   All CRUD goes through /api/uc/* on the ACC backend.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── in-memory cache so sections stay in sync without re-fetching ── */
+let _ucProjects=[], _ucTasks=[], _ucMembers=[], _ucSubcons=[];
+
+/* ── helpers ── */
+function fmtSGD(n){return'S$'+(n/1e6).toFixed(1)+'M';}
+function pillStatus(s){
+  const m={active:'pill-green',on_hold:'pill-amber',completed:'pill-gray',
+           open:'pill-amber',in_progress:'pill-blue',overdue:'pill-red',suspended:'pill-gray'};
+  return'<span class=”pill '+(m[s]||'pill-gray')+'”>'+esc(s.replace('_',' '))+'</span>';
 }
+function pillPriority(p){
+  return'<span class=”pill '+(p==='high'?'pill-red':p==='med'?'pill-amber':'pill-gray')+'”>'+esc(p)+'</span>';
+}
+
+/* ── render: projects ── */
+function renderUcProjects(){
+  const el=document.getElementById('uc-projects-grid');
+  if(!el)return;
+  const ps=_ucProjects;
+  setEl('ucpr-total',ps.length);
+  setEl('ucpr-active',ps.filter(p=>p.status==='active').length);
+  setEl('ucpr-hold',ps.filter(p=>p.status==='on_hold').length);
+  setEl('ucpr-done',ps.filter(p=>p.status==='completed').length);
+  const avg=ps.length?Math.round(ps.reduce((s,p)=>s+p.progress,0)/ps.length):0;
+  setEl('ucpr-avg',avg+'%');
+  setEl('ucpr-val',fmtSGD(ps.reduce((s,p)=>s+p.budget_sgd,0)));
+  el.innerHTML='';
+  ps.forEach(p=>{
+    const barCls=p.progress>=70?'pb-green':p.progress>=40?'pb-blue':'pb-amber';
+    const card=document.createElement('div');
+    card.className='uc-project-card';
+    const hd=document.createElement('div'); hd.className='uc-project-card-hd';
+    const nameSpan=document.createElement('span'); nameSpan.className='uc-project-card-name'; nameSpan.textContent=p.name;
+    const pills=document.createElement('div'); pills.style.cssText='display:flex;gap:.4rem;align-items:center';
+    pills.innerHTML=pillStatus(p.status);
+    const actions=document.createElement('div'); actions.className='uc-row-actions';
+    const eb=document.createElement('button'); eb.className='uc-btn-edit'; eb.textContent='Edit';
+    eb.addEventListener('click',()=>openUcModal('project',p));
+    const db=document.createElement('button'); db.className='uc-btn-del'; db.textContent='Del';
+    db.addEventListener('click',()=>deleteUcItem('projects',p.id,renderUcProjects));
+    actions.append(eb,db); pills.append(actions);
+    hd.append(nameSpan,pills); card.append(hd);
+    const pbw=document.createElement('div'); pbw.className='pbw';
+    const pb=document.createElement('div'); pb.className='pb '+barCls; pb.style.width=p.progress+'%';
+    pbw.append(pb); card.append(pbw);
+    const foot=document.createElement('div'); foot.className='uc-project-card-foot';
+    foot.textContent=p.progress+'% · '+(p.tasks?p.tasks.done+'/'+p.tasks.total:0)+' tasks · Due '+(p.due_date||'—');
+    card.append(foot); el.append(card);
+  });
+}
+
+/* ── render: tasks ── */
+function renderUcTasks(){
+  const tb=document.getElementById('uct-table-body');
+  if(!tb)return;
+  const ts=_ucTasks;
+  const today=new Date().toISOString().slice(0,10);
+  const wk=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+  setEl('uct-total',ts.length);
+  setEl('uct-open',ts.filter(t=>t.status==='open').length);
+  setEl('uct-ip',ts.filter(t=>t.status==='in_progress').length);
+  setEl('uct-done',ts.filter(t=>t.status==='completed').length);
+  setEl('uct-od',ts.filter(t=>t.status==='overdue').length);
+  setEl('uct-rate',ts.length?Math.round(ts.filter(t=>t.status==='completed').length/ts.length*100)+'%':'—');
+  if(chTaskSt){chTaskSt.data.datasets[0].data=[
+    ts.filter(t=>t.status==='completed').length, ts.filter(t=>t.status==='in_progress').length,
+    ts.filter(t=>t.status==='overdue').length, ts.filter(t=>t.status==='open').length];
+    chTaskSt.update();}
+  tb.innerHTML='';
+  ts.forEach(t=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(t.title)+'</td><td>'+esc(t.project||'—')+'</td><td>'+esc(t.assigned_to)+'</td>'
+      +'<td>'+pillPriority(t.priority)+'</td><td>'+(t.due_date||'—')+'</td><td>'+pillStatus(t.status)+'</td>';
+    const td=document.createElement('td');
+    const acts=document.createElement('div'); acts.className='uc-row-actions';
+    const eb=document.createElement('button'); eb.className='uc-btn-edit'; eb.textContent='Edit';
+    eb.addEventListener('click',()=>openUcModal('task',t));
+    const db=document.createElement('button'); db.className='uc-btn-del'; db.textContent='Del';
+    db.addEventListener('click',()=>deleteUcItem('tasks',t.id,renderUcTasks));
+    acts.append(eb,db); td.append(acts); tr.append(td); tb.append(tr);
+  });
+}
+
+/* ── render: members ── */
+function renderUcMembers(){
+  const tb=document.getElementById('ucm-table-body');
+  if(!tb)return;
+  setEl('tm-members',_ucMembers.length);
+  tb.innerHTML='';
+  _ucMembers.forEach(m=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(m.name)+'</td><td>'+esc(m.role)+'</td>';
+    const td=document.createElement('td');
+    const acts=document.createElement('div'); acts.className='uc-row-actions';
+    const eb=document.createElement('button'); eb.className='uc-btn-edit'; eb.textContent='Edit';
+    eb.addEventListener('click',()=>openUcModal('member',m));
+    const db=document.createElement('button'); db.className='uc-btn-del'; db.textContent='Del';
+    db.addEventListener('click',()=>deleteUcItem('members',m.id,renderUcMembers));
+    acts.append(eb,db); td.append(acts); tr.append(td); tb.append(tr);
+  });
+}
+
+/* ── render: subcontractors ── */
+function renderUcSubcons(){
+  const tb=document.getElementById('ucs-table-body');
+  if(!tb)return;
+  setEl('tm-sub',_ucSubcons.length);
+  setEl('tm-sub-active',_ucSubcons.filter(s=>s.status==='active').length);
+  setEl('tm-sub-workers',_ucSubcons.reduce((s,c)=>s+c.workers,0));
+  tb.innerHTML='';
+  _ucSubcons.forEach(s=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(s.company)+'</td><td>'+esc(s.trade)+'</td><td>'+pillStatus(s.status)+'</td><td>'+s.workers+'</td>';
+    const td=document.createElement('td');
+    const acts=document.createElement('div'); acts.className='uc-row-actions';
+    const eb=document.createElement('button'); eb.className='uc-btn-edit'; eb.textContent='Edit';
+    eb.addEventListener('click',()=>openUcModal('subcon',s));
+    const db=document.createElement('button'); db.className='uc-btn-del'; db.textContent='Del';
+    db.addEventListener('click',()=>deleteUcItem('subcontractors',s.id,renderUcSubcons));
+    acts.append(eb,db); td.append(acts); tr.append(td); tb.append(tr);
+  });
+}
+
+/* ── render: budget ── */
+function renderUcBudget(){
+  const tb=document.getElementById('ucb-table-body');
+  if(!tb)return;
+  const ps=_ucProjects;
+  const totAlloc=ps.reduce((s,p)=>s+p.budget_sgd,0);
+  const totSpent=ps.reduce((s,p)=>s+p.spent_sgd,0);
+  setEl('bud-total-alloc',fmtSGD(totAlloc));
+  setEl('bud-total-spent',fmtSGD(totSpent));
+  setEl('bud-total-rem',fmtSGD(totAlloc-totSpent));
+  setEl('bud-total-pct',totAlloc?Math.round(totSpent/totAlloc*100)+'%':'—');
+  setEl('bud-over',ps.filter(p=>p.spent_sgd>p.budget_sgd).length);
+  setEl('bud-risk',ps.filter(p=>p.budget_sgd>0&&p.spent_sgd/p.budget_sgd>=0.7&&p.spent_sgd<=p.budget_sgd).length);
+  if(chBudUtil){
+    chBudUtil.data.labels=ps.map(p=>p.name.split(' ').slice(0,2).join(' '));
+    chBudUtil.data.datasets[0].data=ps.map(p=>p.budget_sgd>0?Math.round(p.spent_sgd/p.budget_sgd*100):0);
+    chBudUtil.update();
+  }
+  tb.innerHTML='';
+  ps.forEach(p=>{
+    const pct=p.budget_sgd>0?Math.round(p.spent_sgd/p.budget_sgd*100):0;
+    const st=p.spent_sgd>p.budget_sgd?'over budget':pct>=70?'at risk':'on track';
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(p.name)+'</td>'
+      +'<td>'+(p.budget_sgd/1e6).toFixed(2)+'</td>'
+      +'<td>'+(p.spent_sgd/1e6).toFixed(2)+'</td>'
+      +'<td>'+((p.budget_sgd-p.spent_sgd)/1e6).toFixed(2)+'</td>'
+      +'<td>'+pct+'%</td>'
+      +'<td>'+pillStatus(st.replace(' ','_'))+'</td>';
+    const td=document.createElement('td');
+    const eb=document.createElement('button'); eb.className='uc-btn-edit'; eb.textContent='Edit budget';
+    eb.style.cssText='font-size:.7rem;padding:.2rem .5rem;border-radius:4px;border:none;cursor:pointer;background:rgba(124,58,237,.12);color:#7c3aed';
+    eb.addEventListener('click',()=>openUcModal('budget',p));
+    td.append(eb); tr.append(td); tb.append(tr);
+  });
+}
+
+/* ── load all UC data ── */
+async function loadUcData(){
+  const [pr,ta,me,su]=await Promise.all([
+    tryFetch('/api/uc/projects',null),
+    tryFetch('/api/uc/tasks',null),
+    tryFetch('/api/uc/members',null),
+    tryFetch('/api/uc/subcontractors',null),
+  ]);
+  if(pr?.projects) _ucProjects=pr.projects;
+  if(ta?.tasks)    _ucTasks=ta.tasks;
+  if(me?.members)  _ucMembers=me.members;
+  if(su?.subcontractors) _ucSubcons=su.subcontractors;
+  renderUcProjects(); renderUcTasks(); renderUcMembers(); renderUcSubcons(); renderUcBudget();
+}
+
+/* ── modal: field schemas per entity type ── */
+const UC_FIELDS={
+  project:[
+    {k:'name',label:'Project Name',type:'text',required:true},
+    {k:'status',label:'Status',type:'select',opts:['active','on_hold','completed']},
+    {k:'progress',label:'Progress (%)',type:'number',min:0,max:100},
+    {k:'budget_sgd',label:'Budget (S$)',type:'number',min:0},
+    {k:'spent_sgd',label:'Spent (S$)',type:'number',min:0},
+    {k:'due_date',label:'Due Date',type:'date'},
+  ],
+  task:[
+    {k:'title',label:'Task',type:'text',required:true},
+    {k:'project_id',label:'Project',type:'select',opts:()=>_ucProjects.map(p=>({v:p.id,l:p.name}))},
+    {k:'assigned_to',label:'Assigned To',type:'text'},
+    {k:'priority',label:'Priority',type:'select',opts:['high','med','low']},
+    {k:'due_date',label:'Due Date',type:'date'},
+    {k:'status',label:'Status',type:'select',opts:['open','in_progress','completed','overdue']},
+  ],
+  member:[
+    {k:'name',label:'Name',type:'text',required:true},
+    {k:'role',label:'Role',type:'text'},
+  ],
+  subcon:[
+    {k:'company',label:'Company',type:'text',required:true},
+    {k:'trade',label:'Trade',type:'text'},
+    {k:'status',label:'Status',type:'select',opts:['active','on_hold','suspended']},
+    {k:'workers',label:'Workers',type:'number',min:0},
+  ],
+  budget:[
+    {k:'budget_sgd',label:'Allocated (S$)',type:'number',min:0,required:true},
+    {k:'spent_sgd',label:'Spent (S$)',type:'number',min:0,required:true},
+  ],
+};
+const UC_ENDPOINT={project:'projects',task:'tasks',member:'members',subcon:'subcontractors',budget:'projects'};
+
+let _ucModalType=null, _ucModalId=null;
+
+function openUcModal(type,data={}){
+  _ucModalType=type; _ucModalId=data.id||null;
+  const fields=UC_FIELDS[type];
+  const form=document.getElementById('uc-modal-form');
+  const fieldsEl=document.getElementById('uc-modal-fields');
+  const titleEl=document.getElementById('uc-modal-title');
+  const errEl=document.getElementById('uc-modal-err');
+  errEl.textContent='';
+  titleEl.textContent=(_ucModalId?'Edit ':'Add ')+type.charAt(0).toUpperCase()+type.slice(1);
+  fieldsEl.innerHTML='';
+  fields.forEach(f=>{
+    const wrap=document.createElement('div'); wrap.className='uc-field';
+    const lbl=document.createElement('label'); lbl.textContent=f.label; wrap.append(lbl);
+    let inp;
+    if(f.type==='select'){
+      inp=document.createElement('select'); inp.name=f.k;
+      const opts=typeof f.opts==='function'?f.opts():f.opts;
+      opts.forEach(o=>{
+        const op=document.createElement('option');
+        if(typeof o==='object'){op.value=o.v;op.textContent=o.l;}
+        else{op.value=o;op.textContent=o.replace('_',' ');}
+        if(data[f.k]!==undefined&&String(data[f.k])===String(o.v||o)) op.selected=true;
+        inp.append(op);
+      });
+      if(data[f.k]!==undefined) inp.value=data[f.k];
+    } else {
+      inp=document.createElement('input'); inp.type=f.type; inp.name=f.k;
+      if(f.min!==undefined) inp.min=f.min;
+      if(f.max!==undefined) inp.max=f.max;
+      if(f.required) inp.required=true;
+      if(data[f.k]!==undefined) inp.value=data[f.k];
+    }
+    wrap.append(inp); fieldsEl.append(wrap);
+  });
+  document.getElementById('uc-modal').style.display='flex';
+}
+
+function closeUcModal(){document.getElementById('uc-modal').style.display='none';}
+
+document.getElementById('uc-modal-form').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const errEl=document.getElementById('uc-modal-err');
+  errEl.textContent='';
+  const fd=new FormData(e.target);
+  const body=Object.fromEntries(fd.entries());
+  const endpoint=UC_ENDPOINT[_ucModalType];
+  const url=_ucModalId?'/api/uc/'+endpoint+'/'+_ucModalId:'/api/uc/'+endpoint;
+  const method=_ucModalId?'PUT':'POST';
+  try{
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json',
+      Authorization:'Bearer '+(localStorage.getItem('klim_token')||sessionStorage.getItem('klim_token')||'')},
+      body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.error||'Save failed';return;}
+    closeUcModal();
+    await loadUcData();
+  }catch(err){errEl.textContent='Network error';}
+});
+
+async function deleteUcItem(endpoint,id,onDone){
+  if(!confirm('Delete this item?')) return;
+  try{
+    const r=await fetch('/api/uc/'+endpoint+'/'+id,{method:'DELETE',
+      headers:{Authorization:'Bearer '+(localStorage.getItem('klim_token')||sessionStorage.getItem('klim_token')||'')}});
+    if(r.ok){await loadUcData();if(onDone)onDone();}
+    else{const d=await r.json();alert(d.error||'Delete failed');}
+  }catch{alert('Network error');}
+}
+
+document.body.addEventListener('click',e=>{
+  if(e.target.closest('[data-uc-close]')) closeUcModal();
+  const btn=e.target.closest('[data-uc-open]');
+  if(btn) openUcModal(btn.dataset.ucOpen);
+});
+document.getElementById('uc-modal').addEventListener('click',e=>{
+  if(e.target===e.currentTarget) closeUcModal();
+});
 
 /* â”€â”€ Connection status dots â”€â”€ */
 function setConn(key,ok,label){
@@ -262,31 +545,8 @@ async function loadAll(){
     setEl('att-today',att.todayTotal??att.today);setEl('att-peak',att.peakThisWeek||att.todayTotal||att.today);
   }
 
-  /* â”€â”€ UniCon Projects â”€â”€ */
-  const ucProj=await tryFetch('/api/unicon/projects',null);
-  if(ucProj&&ucProj.results){
-    renderProjects(ucProj.results);
-    setEl('ov-proj',ucProj.results.filter(p=>p.status==='active').length);
-    if(chTaskProj){
-      const done=ucProj.results.map(p=>p.tasks?p.tasks.done:0);
-      chTaskProj.data.datasets[0].data=done;chTaskProj.update();
-    }
-  }
-
-  /* â”€â”€ UniCon Tasks â”€â”€ */
-  const ucTask=await tryFetch('/api/unicon/tasks',null);
-  if(ucTask&&(ucTask.results||ucTask.tasks)){const _t=ucTask.results||ucTask.tasks;
-    const comp=_t.filter(t=>t.status==='completed').length;
-    const active=_t.filter(t=>t.status==='inProgress'||t.status==='in-progress').length;
-    const ovrd=_t.filter(t=>t.status==='overdue').length;
-    if(chTaskSt){chTaskSt.data.datasets[0].data=[comp,active,ovrd,Math.max(0,_t.length-comp-active-ovrd)];chTaskSt.update()}
-  }
-
-  /* â”€â”€ UniCon Budget â”€â”€ */
-  const ucBud=await tryFetch('/api/unicon/budget',null);
-  if(ucBud&&ucBud.projects){
-    if(chBudUtil){chBudUtil.data.datasets[0].data=ucBud.projects.map(p=>p.utilPct??p.utilisation??0);chBudUtil.update()}
-  }
+  /* -- UniCon (Projects / Tasks / Members / Subcons / Budget) -- */
+  await loadUcData();
 
   /* â”€â”€ IDD Digital Production â”€â”€ */
   const idProd=await tryFetch('/api/idd/production',null);
@@ -481,4 +741,5 @@ const _on = (id, ev, fn) => { const e = _el(id); if (e) e.addEventListener(ev, f
 _on('rfi-search',       'input',  () => filterTable('rfi-table', 'rfi-search'));
 _on('def-search',       'input',  () => filterTable('def-table', 'def-search'));
 _on('sub-search',       'input',  () => filterTable('sub-table', 'sub-search'));
+_on('uct-search',       'input',  () => filterTable('uct-table', 'uct-search'));
 _on('pbi-report-select','change', function() { loadPbiReport(this.value); });

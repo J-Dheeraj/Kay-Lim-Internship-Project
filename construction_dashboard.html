@@ -519,104 +519,117 @@
 </section>
 <!-- ══════════════ UNICON: PROJECTS ══════════════ -->
 <section id="tab-uc-projects" class="tab-section">
-  <div class="ph"><div><div class="pt">Projects</div><div class="ps">UniCon · app.unicongroup.co · Company —</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
+  <div class="ph"><div><div class="pt">Projects</div><div class="ps">Managed internally · no third-party API</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Total Projects</div><div class="mv" id="ucpr-total">4</div></div>
-    <div class="mc"><div class="ml">Active</div><div class="mv txt-green" id="ucpr-active">3</div></div>
-    <div class="mc"><div class="ml">On Hold</div><div class="mv txt-amber" id="ucpr-hold">1</div></div>
-    <div class="mc"><div class="ml">Completed</div><div class="mv txt-muted" id="ucpr-done">0</div></div>
-    <div class="mc"><div class="ml">Avg Progress</div><div class="mv txt-blue" id="ucpr-avg">44%</div></div>
-    <div class="mc"><div class="ml">On-Track Projects</div><div class="mv txt-green" id="ucpr-ok">2</div></div>
-    <div class="mc"><div class="ml">Delayed Projects</div><div class="mv txt-red" id="ucpr-dl">1</div></div>
-    <div class="mc"><div class="ml">Total Contract Value</div><div class="mv mv-1rem" id="ucpr-val">S$132M</div></div>
+    <div class="mc"><div class="ml">Total Projects</div><div class="mv" id="ucpr-total">—</div></div>
+    <div class="mc"><div class="ml">Active</div><div class="mv txt-green" id="ucpr-active">—</div></div>
+    <div class="mc"><div class="ml">On Hold</div><div class="mv txt-amber" id="ucpr-hold">—</div></div>
+    <div class="mc"><div class="ml">Completed</div><div class="mv txt-muted" id="ucpr-done">—</div></div>
+    <div class="mc"><div class="ml">Avg Progress</div><div class="mv txt-blue" id="ucpr-avg">—</div></div>
+    <div class="mc"><div class="ml">Total Contract Value</div><div class="mv mv-1rem" id="ucpr-val">—</div></div>
   </div>
-  <div id="uc-project-cards">
-    <!-- injected by JS -->
+  <div class="uc-section-hd">
+    <span class="tt"><span class="txt-unicon">●</span> Project Register</span>
+    <button class="uc-add-btn" data-uc-open="project">+ Add Project</button>
   </div>
+  <div id="uc-projects-grid"></div>
 </section>
 
 <!-- ══════════════ UNICON: TASKS ══════════════ -->
 <section id="tab-uc-tasks" class="tab-section">
-  <div class="ph"><div><div class="pt">Tasks</div><div class="ps">UniCon · All Projects</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
+  <div class="ph"><div><div class="pt">Tasks</div><div class="ps">Managed internally · all projects</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Total Tasks</div><div class="mv" id="uct-total">86</div></div>
-    <div class="mc"><div class="ml">Open</div><div class="mv txt-amber" id="uct-open">34</div></div>
-    <div class="mc"><div class="ml">In Progress</div><div class="mv txt-blue" id="uct-ip">18</div></div>
-    <div class="mc"><div class="ml">Completed</div><div class="mv txt-green" id="uct-done">34</div></div>
-    <div class="mc"><div class="ml">Overdue</div><div class="mv txt-red" id="uct-od">7</div></div>
-    <div class="mc"><div class="ml">Due Today</div><div class="mv txt-amber" id="uct-today">5</div></div>
-    <div class="mc"><div class="ml">Due This Week</div><div class="mv txt-amber" id="uct-week">12</div></div>
-    <div class="mc"><div class="ml">Completion Rate</div><div class="mv txt-green" id="uct-rate">40%</div></div>
+    <div class="mc"><div class="ml">Total Tasks</div><div class="mv" id="uct-total">—</div></div>
+    <div class="mc"><div class="ml">Open</div><div class="mv txt-amber" id="uct-open">—</div></div>
+    <div class="mc"><div class="ml">In Progress</div><div class="mv txt-blue" id="uct-ip">—</div></div>
+    <div class="mc"><div class="ml">Completed</div><div class="mv txt-green" id="uct-done">—</div></div>
+    <div class="mc"><div class="ml">Overdue</div><div class="mv txt-red" id="uct-od">—</div></div>
+    <div class="mc"><div class="ml">Completion Rate</div><div class="mv txt-green" id="uct-rate">—</div></div>
   </div>
   <div class="two-col">
     <div class="cc"><div class="ct">Tasks by Status</div><div class="cw"><canvas id="c-task-status"></canvas></div></div>
     <div class="cc"><div class="ct">Tasks by Project</div><div class="cw"><canvas id="c-task-proj"></canvas></div></div>
   </div>
-  <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Task List</span><span class="badge badge-unicon">UniCon</span></div>
-  <table><thead><tr><th>Task</th><th>Project</th><th>Assigned To</th><th>Priority</th><th>Due Date</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>Pour L8 slab — Zone A concrete</td><td>Sembawang Block 312</td><td>Ahmad Kadir</td><td><span class="pill pill-red">High</span></td><td>2026-06-09</td><td><span class="pill pill-blue">in progress</span></td></tr>
-    <tr><td>Submit M&amp;E as-built drawings</td><td>Sembawang Block 312</td><td>Lim BH</td><td><span class="pill pill-red">High</span></td><td>2026-06-05</td><td><span class="pill pill-red">overdue</span></td></tr>
-    <tr><td>Procure waterproofing membrane</td><td>Jurong West RC Works</td><td>Rajan S</td><td><span class="pill pill-amber">Med</span></td><td>2026-06-13</td><td><span class="pill pill-amber">open</span></td></tr>
-    <tr><td>Site survey — Tampines PPVC</td><td>Tampines PPVC Block</td><td>Tan WH</td><td><span class="pill pill-amber">Med</span></td><td>2026-06-15</td><td><span class="pill pill-amber">open</span></td></tr>
-    <tr><td>Update progress photographs</td><td>Sembawang Block 312</td><td>Ahmad K</td><td><span class="pill pill-gray">Low</span></td><td>2026-06-10</td><td><span class="pill pill-amber">open</span></td></tr>
-  </tbody></table></div>
+  <div class="tc">
+    <div class="th2">
+      <span class="tt"><span class="txt-unicon">●</span> Task List</span>
+      <button class="uc-add-btn" data-uc-open="task">+ Add Task</button>
+    </div>
+    <div class="tbl-controls"><input class="tbl-search" id="uct-search" placeholder="Search tasks…"></div>
+    <table id="uct-table">
+      <thead><tr><th>Task</th><th>Project</th><th>Assigned To</th><th>Priority</th><th>Due Date</th><th>Status</th><th></th></tr></thead>
+      <tbody id="uct-table-body"></tbody>
+    </table>
+  </div>
 </section>
 
 <!-- ══════════════ UNICON: TEAMS ══════════════ -->
 <section id="tab-uc-teams" class="tab-section">
-  <div class="ph"><div><div class="pt">Teams &amp; Subcontractors</div><div class="ps">UniCon</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
+  <div class="ph"><div><div class="pt">Teams &amp; Subcontractors</div><div class="ps">Managed internally</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Team Members</div><div class="mv" id="tm-members">12</div></div>
-    <div class="mc"><div class="ml">Roles</div><div class="mv" id="tm-roles">5</div></div>
-    <div class="mc"><div class="ml">Subcon Firms</div><div class="mv" id="tm-sub">8</div></div>
-    <div class="mc"><div class="ml">Active Subcon</div><div class="mv txt-green" id="tm-sub-active">6</div></div>
+    <div class="mc"><div class="ml">Team Members</div><div class="mv" id="tm-members">—</div></div>
+    <div class="mc"><div class="ml">Subcon Firms</div><div class="mv" id="tm-sub">—</div></div>
+    <div class="mc"><div class="ml">Active Subcon</div><div class="mv txt-green" id="tm-sub-active">—</div></div>
+    <div class="mc"><div class="ml">Total Subcon Workers</div><div class="mv" id="tm-sub-workers">—</div></div>
   </div>
   <div class="two-col">
-    <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Kay Lim Team</span></div>
-    <table><thead><tr><th>Name</th><th>Role</th><th>Assigned Projects</th><th>Open Tasks</th></tr></thead>
-    <tbody>
-      <tr><td>Ahmad Kadir</td><td>Site Manager</td><td>3</td><td>9</td></tr>
-      <tr><td>Lim Boon Huat</td><td>M&amp;E Coordinator</td><td>2</td><td>7</td></tr>
-      <tr><td>Rajan Subramaniam</td><td>QA/QC Inspector</td><td>3</td><td>6</td></tr>
-      <tr><td>Tan Wei Hao</td><td>Project Engineer</td><td>2</td><td>8</td></tr>
-      <tr><td>Lee Kim Wah</td><td>Safety Officer</td><td>3</td><td>4</td></tr>
-    </tbody></table></div>
-    <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Subcontractors</span></div>
-    <table><thead><tr><th>Company</th><th>Trade</th><th>Status</th><th>Workers</th></tr></thead>
-    <tbody>
-      <tr><td>APS Scaffold Pte Ltd</td><td>Scaffolding</td><td><span class="pill pill-green">active</span></td><td>17</td></tr>
-      <tr><td>Sin Hua Metal Works</td><td>Structural Steel</td><td><span class="pill pill-green">active</span></td><td>22</td></tr>
-      <tr><td>ETC Electric Pte Ltd</td><td>Electrical</td><td><span class="pill pill-green">active</span></td><td>14</td></tr>
-      <tr><td>KL Plumbing &amp; Sanitary</td><td>Plumbing</td><td><span class="pill pill-green">active</span></td><td>12</td></tr>
-      <tr><td>Beauty Plaster Pte Ltd</td><td>Plastering</td><td><span class="pill pill-green">active</span></td><td>18</td></tr>
-      <tr><td>SG Tiling Works</td><td>Tiling</td><td><span class="pill pill-green">active</span></td><td>10</td></tr>
-      <tr><td>Alpha Machinery (Kay Lim)</td><td>Crane / Equipment</td><td><span class="pill pill-green">active</span></td><td>4</td></tr>
-      <tr><td>Pacific Landscaping</td><td>Landscaping</td><td><span class="pill pill-amber">on hold</span></td><td>0</td></tr>
-    </tbody></table></div>
+    <div class="tc">
+      <div class="th2">
+        <span class="tt"><span class="txt-unicon">●</span> Kay Lim Team</span>
+        <button class="uc-add-btn" data-uc-open="member">+ Add Member</button>
+      </div>
+      <table><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
+      <tbody id="ucm-table-body"></tbody></table>
+    </div>
+    <div class="tc">
+      <div class="th2">
+        <span class="tt"><span class="txt-unicon">●</span> Subcontractors</span>
+        <button class="uc-add-btn" data-uc-open="subcon">+ Add Subcon</button>
+      </div>
+      <table><thead><tr><th>Company</th><th>Trade</th><th>Status</th><th>Workers</th><th></th></tr></thead>
+      <tbody id="ucs-table-body"></tbody></table>
+    </div>
   </div>
 </section>
 
 <!-- ══════════════ UNICON: BUDGET ══════════════ -->
 <section id="tab-uc-budget" class="tab-section">
-  <div class="ph"><div><div class="pt">Budget</div><div class="ps">UniCon · All Projects</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
+  <div class="ph"><div><div class="pt">Budget</div><div class="ps">Managed internally · all projects</div></div><span class="src-pill pill-unicon">● UniCon</span></div>
   <div class="mg">
-    <div class="mc"><div class="ml">Total Allocated</div><div class="mv mv-1rem">S$132M</div></div>
-    <div class="mc"><div class="ml">Total Spent</div><div class="mv txt-blue mv-1rem">S$49.2M</div></div>
-    <div class="mc"><div class="ml">Remaining</div><div class="mv txt-green mv-1rem">S$82.8M</div></div>
-    <div class="mc"><div class="ml">Overall Utilisation</div><div class="mv txt-blue">37%</div></div>
-    <div class="mc"><div class="ml">Over Budget Projects</div><div class="mv txt-red" id="bud-over">0</div></div>
-    <div class="mc"><div class="ml">At-Risk Projects</div><div class="mv txt-amber" id="bud-risk">1</div></div>
+    <div class="mc"><div class="ml">Total Allocated</div><div class="mv mv-1rem" id="bud-total-alloc">—</div></div>
+    <div class="mc"><div class="ml">Total Spent</div><div class="mv txt-blue mv-1rem" id="bud-total-spent">—</div></div>
+    <div class="mc"><div class="ml">Remaining</div><div class="mv txt-green mv-1rem" id="bud-total-rem">—</div></div>
+    <div class="mc"><div class="ml">Overall Utilisation</div><div class="mv txt-blue" id="bud-total-pct">—</div></div>
+    <div class="mc"><div class="ml">Over Budget</div><div class="mv txt-red" id="bud-over">—</div></div>
+    <div class="mc"><div class="ml">At-Risk (≥70%)</div><div class="mv txt-amber" id="bud-risk">—</div></div>
   </div>
   <div class="cc mb-card"><div class="ct">Budget Utilisation by Project (%)</div><div class="cw"><canvas id="c-bud-util"></canvas></div></div>
-  <div class="tc"><div class="th2"><span class="tt"><span class="txt-unicon">●</span> Budget by Project</span><span class="badge badge-unicon">UniCon</span></div>
-  <table><thead><tr><th>Project</th><th>Allocated (S$M)</th><th>Spent (S$M)</th><th>Remaining (S$M)</th><th>Used %</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>Sembawang Block 312</td><td>42.0</td><td>28.6</td><td>13.4</td><td>68%</td><td><span class="pill pill-amber">at risk</span></td></tr>
-    <tr><td>Jurong West RC Works</td><td>58.0</td><td>15.2</td><td>42.8</td><td>26%</td><td><span class="pill pill-green">on track</span></td></tr>
-    <tr><td>Tampines PPVC Block</td><td>32.0</td><td>5.4</td><td>26.6</td><td>17%</td><td><span class="pill pill-green">on track</span></td></tr>
-  </tbody></table></div>
+  <div class="tc">
+    <div class="th2"><span class="tt"><span class="txt-unicon">●</span> Budget by Project</span></div>
+    <table id="ucb-table">
+      <thead><tr><th>Project</th><th>Allocated (S$M)</th><th>Spent (S$M)</th><th>Remaining (S$M)</th><th>Used %</th><th>Status</th><th></th></tr></thead>
+      <tbody id="ucb-table-body"></tbody>
+    </table>
+  </div>
 </section>
+
+<!-- ══════════════ UNICON MODAL ══════════════ -->
+<div id="uc-modal" class="uc-modal-backdrop" style="display:none">
+  <div class="uc-modal-card">
+    <div class="uc-modal-hd">
+      <span id="uc-modal-title">Add</span>
+      <button class="uc-modal-close" data-uc-close>✕</button>
+    </div>
+    <form id="uc-modal-form" autocomplete="off">
+      <div id="uc-modal-fields"></div>
+      <div id="uc-modal-err" class="uc-modal-err"></div>
+      <div class="uc-modal-foot">
+        <button type="button" class="uc-btn-secondary" data-uc-close>Cancel</button>
+        <button type="submit" class="uc-btn-primary" id="uc-modal-submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- ══════════════ POWER BI INDEX ══════════════ -->
 <section id="tab-powerbi" class="tab-section">
