@@ -2,7 +2,7 @@
  * Integration tests: UniCon validation, audit persistence, before/after audit, cascade delete.
  * Spawns server.js on a temp port with a temp data directory.
  */
-process.env.SESSION_SECRET = 'uc-test-secret-not-prod';
+process.env.SESSION_SECRET = 'uc-test-secret-not-for-production-use';
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

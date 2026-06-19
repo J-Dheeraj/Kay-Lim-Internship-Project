@@ -3,7 +3,7 @@
  * Spawns server.js with no vendor credentials; with STRICT on, every integration
  * route must return 502 (not 200 mock). Without STRICT, same routes return 200 mock.
  */
-process.env.SESSION_SECRET = 'strict-test-secret-not-prod';
+process.env.SESSION_SECRET = 'strict-test-secret-not-for-production-use';
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,8 +14,8 @@ import { spawn } from 'node:child_process';
 
 const { hashPassword, signToken } = await import('../auth.js');
 
-const PORT_STRICT  = 3097;
-const PORT_LENIENT = 3096;
+const PORT_STRICT  = 3093;
+const PORT_LENIENT = 3092;
 const BASE_STRICT  = `http://127.0.0.1:${PORT_STRICT}`;
 const BASE_LENIENT = `http://127.0.0.1:${PORT_LENIENT}`;
 const TEST_PASS    = 'strict-test-pw-x7q';
