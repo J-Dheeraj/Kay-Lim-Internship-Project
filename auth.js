@@ -56,8 +56,12 @@ function revokedDb() {
 
 export function purgeExpiredRevocations() {
   revokedDb();
-  const { changes } = _purgeStmt.run(Math.floor(Date.now() / 1000));
+  const { changes } = _purgeStmt.run(Date.now());
   return changes;
+}
+
+export function closeRevokedDb() {
+  if (_revokedDb) { _revokedDb.close(); _revokedDb = null; }
 }
 
 // ─── Session secret ───────────────────────────────────────────────────────────

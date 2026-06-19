@@ -40,7 +40,7 @@ async function login() {
 }
 
 test('Power BI embed endpoint rejects reports outside the application allowlist', async () => {
-  const srv = spawn(process.execPath, ['acc_backend_server.js'], {
+  const srv = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve('.'),
     env: {
       ...process.env,

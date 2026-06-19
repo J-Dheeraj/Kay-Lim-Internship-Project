@@ -1,20 +1,21 @@
 # Deployment & Operations Runbook
 
-Containerised deployment of the two services behind a Caddy reverse proxy that
-auto-provisions HTTPS for your domain. Suitable for a controlled pilot.
+Containerised deployment behind a Caddy reverse proxy that auto-provisions HTTPS
+for your domain. Suitable for a controlled pilot.
 
 ```
                  ┌──────────────────────── host (Linux + Docker) ────────────────────────┐
  supervisor DNS  │  Caddy :80/:443  ── auto Let's Encrypt TLS, HSTS, HTTP→HTTPS, wss      │
- A/AAAA records ─┼─▶ ${DOMAIN}, cc.${DOMAIN}  ─▶ acc  :3001  (Command Centre + /api)       │
-                 │   idd.${DOMAIN}            ─▶ idd  :3002  (IDD Production app + /api)    │
+ A/AAAA records ─┼─▶ ${DOMAIN}, cc.${DOMAIN}  ─▶ app  :3001  (Command Centre at /)         │
+                 │   idd.${DOMAIN}            ─▶ app  :3001  (IDD Production at /idd)      │
                  │  shared `state` volume: users.json, revocations.db, acc.db, idd.db      │
                  └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-Both services share identity via the same `SESSION_SECRET` and the same
-`users.json`/`revocations.db` on the `state` volume, so a login or a logout is
-valid on either service.
+One unified `server.js` process serves both apps on port 3001. Caddy routes
+`idd.${DOMAIN}` requests to `/idd` via a path rewrite; all other hostnames map
+to the Command Centre at `/`. Identity state (`users.json`, `revocations.db`)
+is shared on the `state` volume — a login or logout is valid across both apps.
 
 ## 1. Host options (you said host is not decided)
 

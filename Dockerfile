@@ -31,9 +31,8 @@ RUN mkdir -p /data && chown -R node:node /data
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 3001 3002
+EXPOSE 3001
 
 # Entrypoint chowns the mounted /data volume then runs the app as user `node`.
 ENTRYPOINT ["docker-entrypoint.sh"]
-# Default command; compose overrides per service.
-CMD ["node", "acc_backend_server.js"]
+CMD ["node", "server.js"]

@@ -15,9 +15,9 @@ Two related prototypes for Kay Lim's IDD / construction digitalisation:
    scanning, inspection checklists, NCR workflow, real-time sync), persisted in
    SQLite.
 
-Two small Node services share authentication. `acc_backend_server.js` (:3001)
-serves the Command Centre + its API; `idd_production_server.js` (:3002) serves
-the IDD app + its API.
+One unified `server.js` process (:3001) serves both apps: Command Centre at `/`
+and IDD Production at `/idd`. `acc_backend_server.js` and `idd_production_server.js`
+are retained in the repo for reference but are no longer used.
 
 ## Current state (verified)
 
@@ -48,7 +48,7 @@ the IDD app + its API.
 ## How to run
 
 - **Locally (dev):** see the "Run" sections in `README.md` (`npm install`, then
-  `npm start` / `npm run start:idd`). Requires Node 20 or 22.
+  `npm start`). Requires Node 20 or 22.
 - **Production:** see `DEPLOY.md` — Docker + Caddy with automatic HTTPS. Three
   commands once a host and DNS are ready.
 

@@ -35,7 +35,7 @@ import { createStore } from './idd_store.js';
 import {
   requireAuth, requireAdmin, requireRole, loginHandler, logoutHandler,
   requireFeatureAdmin, assertSecureConfig, makeServer,
-  purgeExpiredRevocations, authenticate, seesAllSites,
+  purgeExpiredRevocations, authenticate, seesAllSites, closeRevokedDb,
 } from './auth.js';
 import { makeLogger } from './logger.js';
 import { validateConfig, ACC_SCHEMA } from './config-schema.js';
@@ -140,27 +140,24 @@ app.post('/api/logout', logoutHandler);
 app.use(['/api/powerbi-embed', '/api/powerbi-reports', '/api/rfis', '/api/defects', '/api/qaqc'], proxyLimiter);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Static file serving — block data files and secrets
+// Static file serving — explicit allow-list only; no express.static on root
 // ─────────────────────────────────────────────────────────────────────────────
-// Block sensitive file types from static serving
-app.use((req, res, next) => {
-  if (/\.(json|env|log|tmp|db)(-wal|-shm)?$/i.test(req.path) || /session_secret|users|revoked/i.test(req.path))
-    return res.status(404).end();
-  next();
-});
+const sendStatic = f => (_req, res) => res.sendFile(path.join(__dirname, f));
 
 // Command Centre (ACC dashboard)
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.html')));
-app.get('/construction_dashboard.js',  (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.js')));
-app.get('/construction_dashboard.css', (_req, res) => res.sendFile(path.join(__dirname, 'construction_dashboard.css')));
+app.get('/',                           sendStatic('construction_dashboard.html'));
+app.get('/construction_dashboard.js',  sendStatic('construction_dashboard.js'));
+app.get('/construction_dashboard.css', sendStatic('construction_dashboard.css'));
 
 // IDD Digital Production app
-app.get('/idd', (_req, res) => res.sendFile(path.join(__dirname, 'idd_production_app.html')));
-app.get('/idd_production_app.html', (_req, res) => res.redirect('/idd'));
-app.get('/idd_production_app.js',   (_req, res) => res.sendFile(path.join(__dirname, 'idd_production_app.js')));
+app.get('/idd',                        sendStatic('idd_production_app.html'));
+app.get('/idd_production_app.html',    (_req, res) => res.redirect('/idd'));
+app.get('/idd_production_app.js',      sendStatic('idd_production_app.js'));
+app.get('/idd_production_app.css',     sendStatic('idd_production_app.css'));
 
-// Shared statics (nav.js, nav.css, etc.)
-app.use(express.static(__dirname, { index: false }));
+// Shared navigation widget
+app.get('/nav.js',  sendStatic('nav.js'));
+app.get('/nav.css', sendStatic('nav.css'));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HTTP server + Socket.io
@@ -177,6 +174,7 @@ const io = new SocketIO(server, {
 // ── UniCon internal DB ────────────────────────────────────────────────────────
 const ucDb = new Database(path.join(process.env.DATA_DIR || __dirname, 'uc.db'));
 ucDb.pragma('journal_mode = WAL');
+ucDb.pragma('foreign_keys = ON');
 ucDb.exec(`
   CREATE TABLE IF NOT EXISTS uc_projects (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active',
@@ -801,15 +799,16 @@ app.get('/api/qse/attendance', (_req, res) => liveOrMock(res, 'qse/attendance',
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/unicon/projects', requireAuth, (_req, res) => res.json({ results: ucProjectsWithTasks() }));
 app.get('/api/uc/projects',     requireAuth, (_req, res) => res.json({ projects: ucProjectsWithTasks() }));
-app.post('/api/uc/projects', requireAuth, requireUcAdmin, (req, res) => {
+app.post('/api/uc/projects', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { name, status='active', progress=0, budget_sgd=0, spent_sgd=0, due_date=null } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const id = ucId();
   ucDb.prepare('INSERT INTO uc_projects (id,name,status,progress,budget_sgd,spent_sgd,due_date) VALUES (?,?,?,?,?,?,?)')
     .run(id, name.trim(), status, Number(progress)||0, Number(budget_sgd)||0, Number(spent_sgd)||0, due_date||null);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'project.create', id, name: name.trim() });
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(id));
 });
-app.put('/api/uc/projects/:id', requireAuth, requireUcAdmin, (req, res) => {
+app.put('/api/uc/projects/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { name, status, progress, budget_sgd, spent_sgd, due_date } = req.body || {};
@@ -817,12 +816,17 @@ app.put('/api/uc/projects/:id', requireAuth, requireUcAdmin, (req, res) => {
     name=COALESCE(?,name), status=COALESCE(?,status), progress=COALESCE(?,progress),
     budget_sgd=COALESCE(?,budget_sgd), spent_sgd=COALESCE(?,spent_sgd), due_date=COALESCE(?,due_date)
     WHERE id=?`).run(name||null, status||null, progress??null, budget_sgd??null, spent_sgd??null, due_date||null, req.params.id);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'project.update', id: req.params.id });
   res.json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(req.params.id));
 });
-app.delete('/api/uc/projects/:id', requireAuth, requireUcAdmin, (req, res) => {
-  ucDb.prepare('DELETE FROM uc_tasks WHERE project_id=?').run(req.params.id);
-  const { changes } = ucDb.prepare('DELETE FROM uc_projects WHERE id=?').run(req.params.id);
+app.delete('/api/uc/projects/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
+  const deleteProject = ucDb.transaction(id => {
+    ucDb.prepare('DELETE FROM uc_tasks WHERE project_id=?').run(id);
+    return ucDb.prepare('DELETE FROM uc_projects WHERE id=?').run(id);
+  });
+  const { changes } = deleteProject(req.params.id);
   if (!changes) return res.status(404).json({ error: 'not found' });
+  log.info('uc_mutation', { ...auditMeta(req), action: 'project.delete', id: req.params.id });
   res.json({ ok: true });
 });
 
@@ -842,7 +846,7 @@ app.get('/api/unicon/tasks', requireAuth, (_req, res) => {
   });
 });
 app.get('/api/uc/tasks', requireAuth, (_req, res) => res.json({ tasks: ucTasksWithProject() }));
-app.post('/api/uc/tasks', requireAuth, requireUcAdmin, (req, res) => {
+app.post('/api/uc/tasks', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { project_id, title, assigned_to='', priority='med', due_date=null, status='open' } = req.body || {};
   if (!title?.trim()) return res.status(400).json({ error: 'title required' });
   if (!project_id || !ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(project_id))
@@ -850,9 +854,10 @@ app.post('/api/uc/tasks', requireAuth, requireUcAdmin, (req, res) => {
   const id = ucId();
   ucDb.prepare('INSERT INTO uc_tasks (id,project_id,title,assigned_to,priority,due_date,status) VALUES (?,?,?,?,?,?,?)')
     .run(id, project_id, title.trim(), assigned_to, priority, due_date||null, status);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'task.create', id, project_id });
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(id));
 });
-app.put('/api/uc/tasks/:id', requireAuth, requireUcAdmin, (req, res) => {
+app.put('/api/uc/tasks/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_tasks WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { title, project_id, assigned_to, priority, due_date, status } = req.body || {};
@@ -860,11 +865,13 @@ app.put('/api/uc/tasks/:id', requireAuth, requireUcAdmin, (req, res) => {
     title=COALESCE(?,title), project_id=COALESCE(?,project_id), assigned_to=COALESCE(?,assigned_to),
     priority=COALESCE(?,priority), due_date=COALESCE(?,due_date), status=COALESCE(?,status)
     WHERE id=?`).run(title||null, project_id||null, assigned_to||null, priority||null, due_date||null, status||null, req.params.id);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'task.update', id: req.params.id });
   res.json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(req.params.id));
 });
-app.delete('/api/uc/tasks/:id', requireAuth, requireUcAdmin, (req, res) => {
+app.delete('/api/uc/tasks/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { changes } = ucDb.prepare('DELETE FROM uc_tasks WHERE id=?').run(req.params.id);
   if (!changes) return res.status(404).json({ error: 'not found' });
+  log.info('uc_mutation', { ...auditMeta(req), action: 'task.delete', id: req.params.id });
   res.json({ ok: true });
 });
 
@@ -886,49 +893,55 @@ app.get('/api/unicon/budget', requireAuth, (_req, res) => {
 
 app.get('/api/uc/members', requireAuth, (_req, res) =>
   res.json({ members: ucDb.prepare('SELECT * FROM uc_members ORDER BY created_at').all() }));
-app.post('/api/uc/members', requireAuth, requireUcAdmin, (req, res) => {
+app.post('/api/uc/members', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { name, role='' } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const id = ucId();
   ucDb.prepare('INSERT INTO uc_members (id,name,role) VALUES (?,?,?)').run(id, name.trim(), role);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'member.create', id });
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(id));
 });
-app.put('/api/uc/members/:id', requireAuth, requireUcAdmin, (req, res) => {
+app.put('/api/uc/members/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_members WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { name, role } = req.body || {};
   ucDb.prepare('UPDATE uc_members SET name=COALESCE(?,name), role=COALESCE(?,role) WHERE id=?')
     .run(name||null, role||null, req.params.id);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'member.update', id: req.params.id });
   res.json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(req.params.id));
 });
-app.delete('/api/uc/members/:id', requireAuth, requireUcAdmin, (req, res) => {
+app.delete('/api/uc/members/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { changes } = ucDb.prepare('DELETE FROM uc_members WHERE id=?').run(req.params.id);
   if (!changes) return res.status(404).json({ error: 'not found' });
+  log.info('uc_mutation', { ...auditMeta(req), action: 'member.delete', id: req.params.id });
   res.json({ ok: true });
 });
 
 app.get('/api/uc/subcontractors', requireAuth, (_req, res) =>
   res.json({ subcontractors: ucDb.prepare('SELECT * FROM uc_subcontractors ORDER BY created_at').all() }));
-app.post('/api/uc/subcontractors', requireAuth, requireUcAdmin, (req, res) => {
+app.post('/api/uc/subcontractors', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { company, trade='', status='active', workers=0 } = req.body || {};
   if (!company?.trim()) return res.status(400).json({ error: 'company required' });
   const id = ucId();
   ucDb.prepare('INSERT INTO uc_subcontractors (id,company,trade,status,workers) VALUES (?,?,?,?,?)')
     .run(id, company.trim(), trade, status, Number(workers)||0);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'subcontractor.create', id });
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(id));
 });
-app.put('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, (req, res) => {
+app.put('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_subcontractors WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { company, trade, status, workers } = req.body || {};
   ucDb.prepare(`UPDATE uc_subcontractors SET company=COALESCE(?,company), trade=COALESCE(?,trade),
     status=COALESCE(?,status), workers=COALESCE(?,workers) WHERE id=?`)
     .run(company||null, trade||null, status||null, workers??null, req.params.id);
+  log.info('uc_mutation', { ...auditMeta(req), action: 'subcontractor.update', id: req.params.id });
   res.json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(req.params.id));
 });
-app.delete('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, (req, res) => {
+app.delete('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { changes } = ucDb.prepare('DELETE FROM uc_subcontractors WHERE id=?').run(req.params.id);
   if (!changes) return res.status(404).json({ error: 'not found' });
+  log.info('uc_mutation', { ...auditMeta(req), action: 'subcontractor.delete', id: req.params.id });
   res.json({ ok: true });
 });
 
@@ -1237,6 +1250,9 @@ function shutdown(signal) {
   io.close(() => {
     server.close(() => {
       store.close();
+      try { ucDb.close(); } catch {}
+      try { mpDb.close(); } catch {}
+      closeRevokedDb();
       log.info('shutdown', { stage: 'closed' });
       process.exit(0);
     });
