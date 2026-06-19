@@ -17,6 +17,105 @@ Both apps run from a single `server.js` process on port 3001. No separate server
 
 ---
 
+## Architecture
+
+### Runtime topology
+
+```
+Browser
+  │
+  │  HTTPS (Caddy — auto TLS, HSTS)
+  ▼
+┌─────────────────────────────────────────────────────────┐
+│  Caddy reverse proxy                                    │
+│  domain.com, cc.domain.com  ──────────────┐            │
+│  idd.domain.com  (rewrite / → /idd) ──────┤            │
+└───────────────────────────────────────────┼────────────┘
+                                            │ HTTP :3001
+                                            ▼
+┌─────────────────────────────────────────────────────────┐
+│  server.js  (Node.js / Express + Socket.io)             │
+│                                                         │
+│  GET /          → construction_dashboard.html           │
+│  GET /idd       → idd_production_app.html               │
+│  /api/*         → REST API (auth-gated, rate-limited)   │
+│  /socket.io     → Socket.io real-time feed              │
+│                                                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐             │
+│  │  idd.db  │  │  uc.db   │  │  acc.db  │  SQLite WAL │
+│  │ elements │  │ projects │  │ manpower │             │
+│  │ NCRs     │  │ tasks    │  │ audit    │             │
+│  │ audit    │  │ members  │  └──────────┘             │
+│  └──────────┘  │ subcons  │                            │
+│                └──────────┘                            │
+│  users.json + revocations.db  (auth state, /data vol)  │
+└─────────────────────────────────────────────────────────┘
+         │                    │
+         │ HTTPS              │ HTTPS
+         ▼                    ▼
+  Autodesk ACC /        Power BI Embedded /
+  APS API               Azure AD
+  (Issues, RFIs,        (Reports,
+   QC checklists)        GenerateToken)
+```
+
+### Request lifecycle
+
+```
+1. Browser → Caddy (TLS termination)
+2. Caddy → server.js :3001
+3. Express middleware stack:
+     CORS check → Request ID → Access log → Rate limiter
+     → requireAuth (Bearer token → HMAC verify → revocation check → role lookup)
+     → Route handler
+4. Handler → SQLite (WAL) or vendor HTTPS proxy
+5. IDD mutations → broadcastSite(site, event) via Socket.io rooms
+6. Response → Caddy → Browser
+```
+
+### Real-time (Socket.io)
+
+IDD Production uses WebSocket rooms for site-scoped push. On connect, the server joins the socket to either `hq` (all-site roles) or `site:<id>` (scoped roles). `broadcastSite(site, event, payload)` emits to `site:<id>` and `hq` simultaneously. Site-B sockets never receive Site-A events.
+
+### Data model
+
+| Database | File | Tables | Owner |
+|----------|------|--------|-------|
+| IDD Production | `idd.db` | `elements`, `ncrs`, `element_meta`, `audit` | `idd_store.js` |
+| UniCon (local) | `uc.db` | `uc_projects`, `uc_tasks`, `uc_members`, `uc_subcontractors` | `server.js` |
+| Manpower / ACC | `acc.db` | `kv` (JSON blob), `manpower_audit` | `server.js` |
+| Auth | `users.json` + `revocations.db` | — / `revocations` | `auth.js` |
+
+All SQLite databases run in WAL mode. IDD mutations use row-level transactions with a hash-chained audit table. UniCon foreign keys are enforced (`PRAGMA foreign_keys = ON`); cascade deletes are wrapped in transactions.
+
+### Security layers
+
+```
+Network      Caddy TLS + HSTS
+Auth         HMAC-SHA256 signed tokens (8 h), revocation via SQLite
+RBAC         Four tiers (viewer → inspector → pm/pd → head_of_it/gm/management)
+             + feature-scoped admin (hr manages manpower)
+Site scope   Socket.io rooms + DB WHERE clauses enforce per-site isolation
+Rate limits  login: 10/15 min  |  proxy: 30/min  |  mutations: 60/min
+CSP          style-src 'self'; script-src 'self' + pinned CDN hashes
+Static       Explicit sendFile routes only — repository root not served
+Audit        IDD: hash-chained rows  |  UniCon: structured log (actor + IP)
+Secrets      Vendor keys in .env only; never forwarded to browser
+Container    Non-root node user; digest-pinned base images
+```
+
+### Key design decisions
+
+**Single process, single port.** Both apps share one Express server. This eliminates cross-origin auth complexity, simplifies deployment (one container, one health check, one cert), and keeps the CI smoke test straightforward. The trade-off is that a hot Socket.io workload can pressure the same event loop as the ACC proxy.
+
+**SQLite over a managed database.** Appropriate for a controlled pilot with a handful of concurrent users. WAL mode allows concurrent reads. The constraint is that writes serialise and all state is bound to one host volume. Migration to PostgreSQL is the recommended path before scaling.
+
+**Explicit static allow-list.** Instead of `express.static(__dirname)`, every client-facing file has its own `sendFile` route. This prevents accidental exposure of `server.js`, `Dockerfile`, `.env`, and other backend files.
+
+**Mock-first vendor integration.** Each vendor integration checks for its credentials at startup and falls back to deterministic mock data when they are absent. `INTEGRATIONS_STRICT=1` (the production default) refuses to start if live credentials are missing — preventing silent mock-data leakage into production.
+
+---
+
 ## Quick start
 
 ```bash
