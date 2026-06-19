@@ -23,7 +23,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0",
-    "socket.io-client": "^4.7.5"
+    "socket.io-client": "^4.7.5",
+    "wait-on": "^8.0.1"
   },
   "overrides": {
     "ws": "^8.21.0"
