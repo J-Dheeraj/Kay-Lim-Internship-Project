@@ -55,7 +55,7 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           PORT: 3001
       - name: Wait for server
-        run: npx wait-on http://127.0.0.1:3001/api/health --timeout 30000
+        run: npx --yes wait-on http://127.0.0.1:3001/api/health --timeout 30000
       - name: Run Playwright smoke tests
         run: npm run smoke
         env:
