@@ -1,92 +1,157 @@
-# Kay Lim Internship Project — Construction IT Digitalisation
+# Kay Lim Construction — IT Digitalisation
 
 [![CI](https://github.com/J-Dheeraj/Kay-Lim-Internship-Project/actions/workflows/ci.yml/badge.svg)](https://github.com/J-Dheeraj/Kay-Lim-Internship-Project/actions/workflows/ci.yml)
 
-Two prototypes built during a 2-week IT internship at Kay Lim Construction (Singapore), grounded in the HDB BSS S77 §77.2 Integrated Digital Delivery (IDD) requirements.
+A construction-industry digitalisation platform built during a 2-week IT internship at Kay Lim Construction (Singapore). Covers HDB BSS S77 §77.2 Integrated Digital Delivery (IDD) use cases 3–6: Digital Production, Logistics, QSE, and Command Centre.
+
+---
+
+## What it does
+
+| App | URL | What it covers |
+|-----|-----|----------------|
+| **Command Centre** | `/` | Live ACC issues/RFIs/defects, Power BI reports, QSE safety, UniCon projects/tasks/budget, manpower headcount |
+| **IDD Digital Production** | `/idd` | Precast/PPVC element register, QR scanning, QC checklists, NCR workflow, real-time multi-user sync |
+
+Both apps run from a single `server.js` process on port 3001. No separate servers, no cross-origin complexity.
+
+---
+
+## Quick start
+
+```bash
+# Prerequisites: Node 20 LTS or 22 LTS
+npm install
+cp .env.deploy.example .env     # fill in ADMIN_PASSWORD (required) + vendor creds (optional)
+npm start                        # http://localhost:3001
+```
+
+- Command Centre: `http://localhost:3001/`
+- IDD Production: `http://localhost:3001/idd`
+- Dev (auto-restart on save): `npm run dev`
+
+Vendor credentials are optional — the server falls back to realistic mock data for any integration that is not configured.
+
+**First run:** the admin account is created automatically. The password is read from `ADMIN_PASSWORD` in `.env`, or generated and printed once to the console.
+
+---
+
+## Integrations
+
+| Integration | Status | Env vars needed |
+|-------------|--------|-----------------|
+| Autodesk Construction Cloud (ACC) — Issues, RFIs, defects, QC checklists | Live | `APS_CLIENT_ID`, `APS_CLIENT_SECRET`, `ACC_ACCOUNT_ID`, `ACC_PROJECT_ID` |
+| Power BI Embedded — reports via service-principal | Live | `PBI_TENANT_ID`, `PBI_CLIENT_ID`, `PBI_CLIENT_SECRET`, `PBI_WORKSPACE_ID` |
+| IDD Digital Production — SQLite + Socket.io real-time | Live | — (local, no creds needed) |
+| Insight QSE (CAPPS) — safety, PTW, NCRs, attendance | Mock | `QSE_BASE_URL`, `QSE_API_KEY` (contact CAPPS: contact@capps.com.sg) |
+| UniCon — projects, tasks, budget | Mock | `UNICON_BASE_URL`, `UNICON_API_KEY`, `UNICON_COMPANY_ID` |
+
+---
 
 ## Project structure
 
-| File | What it is |
-|------|------------|
-| `server.js` | **Unified backend** (Express + Socket.io, :3001). Serves both apps from one process: Command Centre at `/`, IDD Production at `/idd`. Proxies Autodesk ACC / Power BI / QSE / UniCon; RBAC auth; manpower and UniCon SQLite; IDD real-time via Socket.io. |
-| `construction_dashboard.html` | **Command Centre** single-page dashboard. |
-| `idd_production_app.html` | **IDD Production** single-page app. |
-| `idd_store.js` | IDD **data layer** — relational SQLite store (elements, NCRs, meta, audit) with row-level transactions and the hash-chained audit. |
-| `auth.js` | **Authentication & access control** — login, signed tokens, revocation, RBAC tiers, feature-scoped admin, site scoping, user-management CLI. |
-| `nav.js` / `nav.css` | **IDD Hub nav bar** — injected into both apps; links all built QWC1 use cases. |
-| `test/` | Automated tests (`npm test`, run by CI on every push). |
-| `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.env.deploy.example` | **Deployment** — containers + Caddy reverse proxy with automatic HTTPS. |
-| `.github/workflows/ci.yml` | GitHub Actions CI (install, syntax, tests). |
-| `README.md` · `DEPLOY.md` · `HANDOVER.md` | This file · deployment/operations runbook (incl. Google Cloud steps) · handover orientation. |
-| `acc_backend_server.js`, `idd_production_server.js` | Legacy two-server entry points — retained for reference only; not used. |
-
-## 1. Construction Command Centre
-A single dashboard aggregating four platforms Kay Lim already uses:
-- **Autodesk Construction Cloud (ACC)** — Issues/RFIs, defects, quality checklists (live via APS API)
-- **Insight QSE (CAPPS)** — safety inspections, PTW, non-conformities, attendance (mock until API key obtained)
-- **UniCon** — projects, tasks, budget (mock until API access granted)
-- **Power BI** — embedded reports via service-principal auth
-
-### Run
-```bash
-npm install                 # requires Node 20 LTS or 22 LTS (see .nvmrc)
-cp .env.example .env        # set ADMIN_PASSWORD, and APS / Power BI creds if available
-npm start                   # unified server on :3001
-# open http://localhost:3001/ in a browser and log in (Command Centre)
-# open http://localhost:3001/idd for IDD Production
 ```
-Falls back to realistic mock data automatically when vendor credentials are not set.
+server.js                    Unified backend — Express + Socket.io, port 3001
+auth.js                      Authentication: signed tokens, RBAC, revocation, user CLI
+idd_store.js                 IDD data layer: SQLite (WAL), hash-chained audit
+config-schema.js             Startup config validation
+logger.js                    Structured JSON request logger
 
-## 2. IDD Digital Production prototype
-Real-time tracker for HDB IDD Use Case #3 (Digital Production): precast/PPVC element register, QR tagging + camera scanner, QC inspection checklists, NCR workflow, live multi-user sync via Socket.io. State is persisted in SQLite (WAL).
+construction_dashboard.html  Command Centre SPA
+construction_dashboard.js
+construction_dashboard.css
 
-Available at `http://localhost:3001/idd` — no separate server needed.
+idd_production_app.html      IDD Production SPA
+idd_production_app.js
+idd_production_app.css
 
-## 3. IDD Hub — cross-app navigation
-`nav.js` and `nav.css` are dropped into both apps and inject a persistent sidebar section linking all built QWC1 use cases:
+nav.js / nav.css             Shared hub navigation bar (injected into both apps)
 
-| Entry | UC | Status |
-|-------|----|--------|
-| Command Centre | UC 3–6 | Live (ACC); mock (QSE, UniCon) |
-| Digital Production | UC 3 | Live |
-| Digital Logistics | UC 4 | Mock |
-| QSE Inspection | UC 6 | Mock |
+test/
+  auth.test.js               Token signing, revocation, RBAC unit tests
+  store.test.js              IDD store: CRUD, audit chain, site scoping
+  security_headers.test.js   CSP header checks on both app routes
+  socket.test.js             Socket.io site-isolation (no cross-site leaks)
+  powerbi_allowlist.test.js  Power BI report allow-list enforcement
+  smoke.spec.js              Playwright end-to-end: login, navigation, CSP
 
-URL derivation is path-based — no config required:
-- Dev: `localhost:3001/` ↔ `localhost:3001/idd`
-- Production: `domain.com/` ↔ `idd.domain.com/` (Caddy rewrites to `/idd` path)
+Dockerfile                   Single container image (Node 22 bookworm-slim, non-root)
+docker-compose.yml           One app service + Caddy reverse proxy
+Caddyfile                    Auto-TLS, HSTS, idd.DOMAIN → /idd path rewrite
+.env.deploy.example          Environment variable reference
+.github/workflows/ci.yml     CI: syntax, unit tests, Playwright, Gitleaks, Trivy, SBOM
 
-Styles are in `nav.css` (explicit static route) to comply with the `style-src 'self'` Content Security Policy — no inline styles or `unsafe-inline` required.
+DEPLOY.md                    Deployment and operations runbook
+HANDOVER.md                  Orientation for the next engineer
+```
+
+Legacy entry points `acc_backend_server.js` and `idd_production_server.js` are retained for reference only and are not used.
+
+---
 
 ## Authentication
-- **Per-user login** — `POST /api/login` returns a signed session token (8h); the browser sends it as `Authorization: Bearer <token>`. No API key is ever exposed to the browser.
-- **Logout / revocation** — `POST /api/logout` revokes the token; deleting a user or changing their role takes effect on their next request.
-- **Token compaction** — expired revocation records are purged from SQLite at startup and hourly, keeping the revocations table small.
-- **User management** — `node auth.js add-user <name> <password> [viewer|hr|inspector|pm|pd|gm|management|head_of_it] [site]`, `remove-user`, `list-users`. First run creates a `head_of_it` account (password from `ADMIN_PASSWORD`, or printed once). The optional `[site]` scopes a non-HQ user to one site.
-- **Roles (RBAC)** — four capability tiers, mapped to Kay Lim org positions. Reads are open to any logged-in user; mutations are gated:
 
-  | Tier | Roles | Can do |
-  |------|-------|--------|
-  | Full access | `head_of_it` (legacy `admin`), `gm`, `management` | Everything: DB reset, audit verification, all QC/NCR actions. **GM/Management get everything *except* the manpower feature** (HR/IT only). |
-  | QC/NCR manager | `pd`, `pm` (legacy `supervisor`) | Change status, submit checklists, raise **and close/approve** NCRs |
-  | QC inspector | `inspector` (legacy `user`) | Change status, submit checklists, raise NCRs — **cannot close** (separation of duties) |
-  | Read-only | `viewer`, `hr` | View dashboards, elements, NCRs |
+All API routes (except `/api/health` and `/api/login`) require a valid `Authorization: Bearer <token>` header. Socket.io connections are authenticated the same way.
 
-  Only `head_of_it` (IT) holds the *most* access — it's the one full-access role that **also** manages manpower. **Feature-scoped admin** sits alongside the tiers: `hr` (and `head_of_it`) manage the **manpower** feature (`PUT /api/manpower`); GM/Management are full-access but explicitly excluded from manpower.
+**User management (CLI):**
+```bash
+node auth.js add-user <name> <password> <role> [site]
+node auth.js remove-user <name>
+node auth.js list-users
+node auth.js compact-revoked     # prune expired revocation records
+```
 
-- **Multi-site** — every IDD element/NCR belongs to a **site**. A user assigned a site (`add-user … <role> <site>`) sees and acts on **only that site**; HQ roles (`head_of_it`, `gm`, `management`) see **all sites** and get a per-site rollup on the dashboard (`bySite`). HQ can narrow to one site with `?site=<id>`. `GET /api/production/sites` lists the sites visible to the caller. This is one central deployment serving all sites — see `DEPLOY.md`.
+**Roles:**
 
-## Security notes
-- Vendor API keys live server-side in `.env` only — never sent to the browser.
-- All `/api` routes require a valid token (except health and login); Socket.io connections are authenticated too.
-- Static files are served via an explicit allow-list of routes — the repository root is not exposed via `express.static`.
-- IDD mutations are recorded in a hash-chained SQLite audit table (verified via `GET /api/production/audit/verify`).
-- UniCon mutations are rate-limited and logged to the structured request log with actor and IP.
-- User-supplied text is HTML-escaped before rendering; CORS is locked to allowlisted origins.
-- CSP is enforced (`style-src 'self'`, `script-src 'self'` + pinned CDN hashes); `nav.css` is the external stylesheet that makes the hub nav bar CSP-compliant.
-- TLS: set `TLS_KEY_FILE`/`TLS_CERT_FILE` to serve HTTPS directly, or terminate TLS at a reverse proxy. The Caddy image is digest-pinned in `docker-compose.yml`.
-- The server handles `SIGTERM`/`SIGINT` with a graceful shutdown (drains in-flight requests, closes all DB handles, forced exit after 10 s).
-- `GET /api/health` returns `200 ok` when all dependencies are healthy, `503 degraded` with a `checks` breakdown when not — suitable for load-balancer health probes.
-- `npm test` runs the auth unit tests and Playwright smoke tests.
+| Tier | Roles | Permissions |
+|------|-------|-------------|
+| Full access | `head_of_it`, `gm`, `management` | Everything — DB reset, audit verify, all QC/NCR actions. `head_of_it` also manages manpower; `gm`/`management` do not. |
+| QC/NCR manager | `pm`, `pd` | Change status, submit checklists, raise and close/approve NCRs |
+| QC inspector | `inspector` | Change status, submit checklists, raise NCRs (cannot close — separation of duties) |
+| Read-only | `viewer`, `hr` | View dashboards, elements, NCRs. `hr` manages manpower writes. |
 
-See the security review history for known remaining gaps (enterprise identity, managed persistence, observability, recovery).
+**Site scoping:** each IDD element and NCR belongs to a site. Users assigned a site see only that site's data. HQ roles (`head_of_it`, `gm`, `management`) see all sites and receive a `bySite` rollup.
+
+---
+
+## Testing
+
+```bash
+npm test          # all unit + integration tests (Node test runner, no extra setup)
+npm run smoke     # Playwright end-to-end browser tests (requires Chromium)
+```
+
+CI runs on every push: Node 20 + 22 matrix, Playwright smoke, Gitleaks secret scan, Trivy CVE scan, CycloneDX SBOM generation.
+
+---
+
+## Deployment
+
+One command once DNS A/AAAA records point at the host:
+
+```bash
+cp .env.deploy.example .env   # fill in DOMAIN, SESSION_SECRET, ADMIN_PASSWORD + vendor creds
+docker compose up -d --build
+```
+
+Caddy provisions Let's Encrypt TLS automatically and routes:
+- `https://DOMAIN` and `https://cc.DOMAIN` → Command Centre
+- `https://idd.DOMAIN` → IDD Production (path-rewritten to `/idd` on the unified server)
+
+See `DEPLOY.md` for the full operations runbook including GCP setup, user management, backup/restore, and monitoring.
+
+---
+
+## Security
+
+- **No secrets in the browser** — vendor API keys stay in `.env` and are never forwarded to the client.
+- **Explicit static routes** — only named client files are served; the repository root is not exposed via `express.static`.
+- **Content Security Policy** — `style-src 'self'`, `script-src 'self'` + pinned CDN hashes; no `unsafe-inline`.
+- **Rate limiting** — mutation routes (IDD and UniCon) are rate-limited. Proxy routes (ACC, Power BI, QSE) have a separate limiter.
+- **Audit trail** — IDD mutations are stored in a hash-chained SQLite table, verifiable via `GET /api/production/audit/verify`. UniCon mutations are logged with actor and IP.
+- **Token revocation** — `POST /api/logout` revokes the token immediately; expired revocation records are pruned hourly.
+- **Graceful shutdown** — `SIGTERM`/`SIGINT` drains in-flight requests and closes all database handles before exit.
+- **Health check** — `GET /api/health` reports identity, IDD, UniCon, and manpower DB status; returns `503` if any check fails.
+- **Container** — non-root `node` user, digest-pinned base images, no secrets baked into the image.
+
+Known gaps (pilot-appropriate; not production-ready): local identity instead of enterprise SSO/MFA, SQLite instead of managed PostgreSQL, no central observability or automated recovery.
