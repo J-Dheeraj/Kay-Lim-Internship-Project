@@ -47,7 +47,7 @@ test.describe('ACC Command Centre', () => {
 
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
-    await page.locator('button[type="submit"]').click();
+    await page.locator('button[type="submit"].login-btn').click();
 
     // After login the page reloads; overview tab should become active
     await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 20_000 });
@@ -63,7 +63,7 @@ test.describe('ACC Command Centre', () => {
     await expect(page.locator('#login-overlay')).toBeVisible();
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
-    await page.locator('button[type="submit"]').click();
+    await page.locator('button[type="submit"].login-btn').click();
     await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 20_000 });
 
     // Click a nav item that uses data-section (not onclick)
@@ -92,7 +92,7 @@ test.describe('IDD Digital Production', () => {
 
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
-    await page.locator('button[type="submit"]').click();
+    await page.locator('button[type="submit"].login-btn').click();
 
     await expect(page.locator('#tab-dashboard')).toHaveClass(/active/, { timeout: 20_000 });
 
@@ -107,7 +107,7 @@ test.describe('IDD Digital Production', () => {
     await expect(page.locator('#login-overlay')).toBeVisible();
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
-    await page.locator('button[type="submit"]').click();
+    await page.locator('button[type="submit"].login-btn').click();
     await expect(page.locator('#tab-dashboard')).toHaveClass(/active/, { timeout: 20_000 });
 
     // Element register
@@ -131,7 +131,7 @@ test.describe('IDD Digital Production', () => {
     await expect(page.locator('#login-overlay')).toBeVisible();
     await page.fill('#login-user', 'admin');
     await page.fill('#login-pass', PW);
-    await page.locator('button[type="submit"]').click();
+    await page.locator('button[type="submit"].login-btn').click();
     await expect(page.locator('#tab-overview')).toHaveClass(/active/, { timeout: 20_000 });
 
     const jsErrors = [];
