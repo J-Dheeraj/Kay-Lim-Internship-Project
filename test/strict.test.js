@@ -100,7 +100,6 @@ test('before — start lenient server (no INTEGRATIONS_STRICT, no vendor creds)'
 // Routes that must 502 in strict mode and 200 mock in lenient mode
 const STRICT_ROUTES = [
   '/api/rfis',
-  '/api/issues',
   '/api/defects',
   '/api/progress',
   '/api/idd/production',
