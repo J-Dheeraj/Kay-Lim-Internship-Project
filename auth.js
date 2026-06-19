@@ -1,6 +1,6 @@
 /**
  * Shared authentication module — per-user login with signed session tokens.
- * Used by acc_backend_server.js and idd_production_server.js.
+ * Used by server.js (unified backend).
  *
  * Users:   ./users.json (gitignored) — scrypt-hashed passwords, per-user role
  * Tokens:  HMAC-SHA256 signed, 8 hour expiry, sent as "Authorization: Bearer <token>"

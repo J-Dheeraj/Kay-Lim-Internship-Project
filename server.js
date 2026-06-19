@@ -198,6 +198,15 @@ ucDb.exec(`
     status TEXT NOT NULL DEFAULT 'active', workers INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS uc_audit (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    at   TEXT NOT NULL DEFAULT (datetime('now')),
+    actor TEXT NOT NULL,
+    ip   TEXT NOT NULL,
+    action TEXT NOT NULL,
+    entity_id TEXT,
+    detail TEXT
+  );
 `);
 (ucDb.transaction(() => {
   if (!ucDb.prepare('SELECT 1 FROM uc_projects LIMIT 1').get()) {
@@ -235,6 +244,45 @@ function requireUcAdmin(req, res, next) {
   if (!new Set(['pm','pd','gm','management','head_of_it','admin']).has(req.user?.role))
     return res.status(403).json({ error: 'pm role or above required' });
   next();
+}
+
+const UC_PROJECT_STATUSES = new Set(['active','on_hold','completed','cancelled']);
+const UC_TASK_STATUSES    = new Set(['open','in_progress','completed','overdue']);
+const UC_PRIORITIES       = new Set(['low','med','medium','high','critical']);
+const UC_SUB_STATUSES     = new Set(['active','on_hold','completed','cancelled']);
+const ISO_DATE_RE         = /^\d{4}-\d{2}-\d{2}$/;
+
+function validateUcProject({ name, status, progress, budget_sgd, spent_sgd, due_date } = {}) {
+  const errors = [];
+  if (!name?.trim()) errors.push('name required');
+  if (status != null && !UC_PROJECT_STATUSES.has(status))
+    errors.push(`status must be one of: ${[...UC_PROJECT_STATUSES].join(', ')}`);
+  if (progress != null && (Number(progress) < 0 || Number(progress) > 100))
+    errors.push('progress must be 0–100');
+  if (budget_sgd != null && Number(budget_sgd) < 0) errors.push('budget_sgd must be ≥ 0');
+  if (spent_sgd  != null && Number(spent_sgd)  < 0) errors.push('spent_sgd must be ≥ 0');
+  if (due_date   != null && !ISO_DATE_RE.test(due_date)) errors.push('due_date must be YYYY-MM-DD');
+  return errors;
+}
+
+function validateUcTask({ title, project_id, priority, status, due_date } = {}) {
+  const errors = [];
+  if (!title?.trim()) errors.push('title required');
+  if (!project_id)    errors.push('project_id required');
+  if (priority != null && !UC_PRIORITIES.has(priority))
+    errors.push(`priority must be one of: ${[...UC_PRIORITIES].join(', ')}`);
+  if (status != null && !UC_TASK_STATUSES.has(status))
+    errors.push(`status must be one of: ${[...UC_TASK_STATUSES].join(', ')}`);
+  if (due_date != null && !ISO_DATE_RE.test(due_date)) errors.push('due_date must be YYYY-MM-DD');
+  return errors;
+}
+
+const _ucAudit = ucDb.prepare(
+  'INSERT INTO uc_audit (actor,ip,action,entity_id,detail) VALUES (?,?,?,?,?)'
+);
+function ucAudit(req, action, entityId, detail = null) {
+  const { actor, ip } = auditMeta(req);
+  _ucAudit.run(actor, ip, action, entityId, detail ? JSON.stringify(detail) : null);
 }
 
 // ── Manpower DB ───────────────────────────────────────────────────────────────
@@ -431,17 +479,19 @@ function mock(data, integrationError) {
 }
 
 async function liveOrMock(res, label, configured, fetchLive, mockData) {
-  if (configured) {
-    try {
-      return res.json({ ...(await fetchLive()), _source: 'live' });
-    } catch (e) {
-      log.warn('live-call', { label, error: e.message });
-      if (STRICT_INTEGRATIONS)
-        return res.status(502).json({ error: 'integration unavailable', source: label, detail: e.message, _source: 'error' });
-      return res.json(mock(mockData, e.message));
-    }
+  if (!configured) {
+    if (STRICT_INTEGRATIONS)
+      return res.status(502).json({ error: 'integration not configured', source: label, _source: 'error' });
+    return res.json(mock(mockData));
   }
-  return res.json(mock(mockData));
+  try {
+    return res.json({ ...(await fetchLive()), _source: 'live' });
+  } catch (e) {
+    log.warn('live-call', { label, error: e.message });
+    if (STRICT_INTEGRATIONS)
+      return res.status(502).json({ error: 'integration unavailable', source: label, detail: e.message, _source: 'error' });
+    return res.json(mock(mockData, e.message));
+  }
 }
 
 function isPlaceholder(v) {
@@ -800,33 +850,41 @@ app.get('/api/qse/attendance', (_req, res) => liveOrMock(res, 'qse/attendance',
 app.get('/api/unicon/projects', requireAuth, (_req, res) => res.json({ results: ucProjectsWithTasks() }));
 app.get('/api/uc/projects',     requireAuth, (_req, res) => res.json({ projects: ucProjectsWithTasks() }));
 app.post('/api/uc/projects', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  const { name, status='active', progress=0, budget_sgd=0, spent_sgd=0, due_date=null } = req.body || {};
-  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  const errors = validateUcProject(req.body || {});
+  if (errors.length) return res.status(400).json({ errors });
+  const { name, status='active', progress=0, budget_sgd=0, spent_sgd=0, due_date=null } = req.body;
   const id = ucId();
-  ucDb.prepare('INSERT INTO uc_projects (id,name,status,progress,budget_sgd,spent_sgd,due_date) VALUES (?,?,?,?,?,?,?)')
-    .run(id, name.trim(), status, Number(progress)||0, Number(budget_sgd)||0, Number(spent_sgd)||0, due_date||null);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'project.create', id, name: name.trim() });
+  ucDb.transaction(() => {
+    ucDb.prepare('INSERT INTO uc_projects (id,name,status,progress,budget_sgd,spent_sgd,due_date) VALUES (?,?,?,?,?,?,?)')
+      .run(id, name.trim(), status, Number(progress)||0, Number(budget_sgd)||0, Number(spent_sgd)||0, due_date||null);
+    ucAudit(req, 'project.create', id, { name: name.trim(), status });
+  })();
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(id));
 });
 app.put('/api/uc/projects/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { name, status, progress, budget_sgd, spent_sgd, due_date } = req.body || {};
-  ucDb.prepare(`UPDATE uc_projects SET
-    name=COALESCE(?,name), status=COALESCE(?,status), progress=COALESCE(?,progress),
-    budget_sgd=COALESCE(?,budget_sgd), spent_sgd=COALESCE(?,spent_sgd), due_date=COALESCE(?,due_date)
-    WHERE id=?`).run(name||null, status||null, progress??null, budget_sgd??null, spent_sgd??null, due_date||null, req.params.id);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'project.update', id: req.params.id });
+  const errors = validateUcProject({ name: name || 'placeholder', status, progress, budget_sgd, spent_sgd, due_date });
+  const fieldErrors = errors.filter(e => e !== 'name required');
+  if (fieldErrors.length) return res.status(400).json({ errors: fieldErrors });
+  ucDb.transaction(() => {
+    ucDb.prepare(`UPDATE uc_projects SET
+      name=COALESCE(?,name), status=COALESCE(?,status), progress=COALESCE(?,progress),
+      budget_sgd=COALESCE(?,budget_sgd), spent_sgd=COALESCE(?,spent_sgd), due_date=COALESCE(?,due_date)
+      WHERE id=?`).run(name||null, status||null, progress??null, budget_sgd??null, spent_sgd??null, due_date||null, req.params.id);
+    ucAudit(req, 'project.update', req.params.id);
+  })();
   res.json(ucDb.prepare('SELECT * FROM uc_projects WHERE id=?').get(req.params.id));
 });
 app.delete('/api/uc/projects/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  const deleteProject = ucDb.transaction(id => {
-    ucDb.prepare('DELETE FROM uc_tasks WHERE project_id=?').run(id);
-    return ucDb.prepare('DELETE FROM uc_projects WHERE id=?').run(id);
-  });
-  const { changes } = deleteProject(req.params.id);
+  let changes = 0;
+  ucDb.transaction(() => {
+    ucDb.prepare('DELETE FROM uc_tasks WHERE project_id=?').run(req.params.id);
+    changes = ucDb.prepare('DELETE FROM uc_projects WHERE id=?').run(req.params.id).changes;
+    if (changes) ucAudit(req, 'project.delete', req.params.id);
+  })();
   if (!changes) return res.status(404).json({ error: 'not found' });
-  log.info('uc_mutation', { ...auditMeta(req), action: 'project.delete', id: req.params.id });
   res.json({ ok: true });
 });
 
@@ -847,31 +905,42 @@ app.get('/api/unicon/tasks', requireAuth, (_req, res) => {
 });
 app.get('/api/uc/tasks', requireAuth, (_req, res) => res.json({ tasks: ucTasksWithProject() }));
 app.post('/api/uc/tasks', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  const { project_id, title, assigned_to='', priority='med', due_date=null, status='open' } = req.body || {};
-  if (!title?.trim()) return res.status(400).json({ error: 'title required' });
-  if (!project_id || !ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(project_id))
-    return res.status(400).json({ error: 'valid project_id required' });
+  const errors = validateUcTask(req.body || {});
+  if (errors.length) return res.status(400).json({ errors });
+  const { project_id, title, assigned_to='', priority='med', due_date=null, status='open' } = req.body;
+  if (!ucDb.prepare('SELECT id FROM uc_projects WHERE id=?').get(project_id))
+    return res.status(400).json({ errors: ['valid project_id required'] });
   const id = ucId();
-  ucDb.prepare('INSERT INTO uc_tasks (id,project_id,title,assigned_to,priority,due_date,status) VALUES (?,?,?,?,?,?,?)')
-    .run(id, project_id, title.trim(), assigned_to, priority, due_date||null, status);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'task.create', id, project_id });
+  ucDb.transaction(() => {
+    ucDb.prepare('INSERT INTO uc_tasks (id,project_id,title,assigned_to,priority,due_date,status) VALUES (?,?,?,?,?,?,?)')
+      .run(id, project_id, title.trim(), assigned_to, priority, due_date||null, status);
+    ucAudit(req, 'task.create', id, { project_id, title: title.trim() });
+  })();
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(id));
 });
 app.put('/api/uc/tasks/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_tasks WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { title, project_id, assigned_to, priority, due_date, status } = req.body || {};
-  ucDb.prepare(`UPDATE uc_tasks SET
-    title=COALESCE(?,title), project_id=COALESCE(?,project_id), assigned_to=COALESCE(?,assigned_to),
-    priority=COALESCE(?,priority), due_date=COALESCE(?,due_date), status=COALESCE(?,status)
-    WHERE id=?`).run(title||null, project_id||null, assigned_to||null, priority||null, due_date||null, status||null, req.params.id);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'task.update', id: req.params.id });
+  const errors = validateUcTask({ title: title || 'placeholder', project_id: project_id || 'placeholder', priority, status, due_date });
+  const fieldErrors = errors.filter(e => e !== 'title required' && e !== 'project_id required');
+  if (fieldErrors.length) return res.status(400).json({ errors: fieldErrors });
+  ucDb.transaction(() => {
+    ucDb.prepare(`UPDATE uc_tasks SET
+      title=COALESCE(?,title), project_id=COALESCE(?,project_id), assigned_to=COALESCE(?,assigned_to),
+      priority=COALESCE(?,priority), due_date=COALESCE(?,due_date), status=COALESCE(?,status)
+      WHERE id=?`).run(title||null, project_id||null, assigned_to||null, priority||null, due_date||null, status||null, req.params.id);
+    ucAudit(req, 'task.update', req.params.id);
+  })();
   res.json(ucDb.prepare('SELECT * FROM uc_tasks WHERE id=?').get(req.params.id));
 });
 app.delete('/api/uc/tasks/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  const { changes } = ucDb.prepare('DELETE FROM uc_tasks WHERE id=?').run(req.params.id);
+  let changes = 0;
+  ucDb.transaction(() => {
+    changes = ucDb.prepare('DELETE FROM uc_tasks WHERE id=?').run(req.params.id).changes;
+    if (changes) ucAudit(req, 'task.delete', req.params.id);
+  })();
   if (!changes) return res.status(404).json({ error: 'not found' });
-  log.info('uc_mutation', { ...auditMeta(req), action: 'task.delete', id: req.params.id });
   res.json({ ok: true });
 });
 
@@ -895,25 +964,32 @@ app.get('/api/uc/members', requireAuth, (_req, res) =>
   res.json({ members: ucDb.prepare('SELECT * FROM uc_members ORDER BY created_at').all() }));
 app.post('/api/uc/members', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { name, role='' } = req.body || {};
-  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  if (!name?.trim()) return res.status(400).json({ errors: ['name required'] });
   const id = ucId();
-  ucDb.prepare('INSERT INTO uc_members (id,name,role) VALUES (?,?,?)').run(id, name.trim(), role);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'member.create', id });
+  ucDb.transaction(() => {
+    ucDb.prepare('INSERT INTO uc_members (id,name,role) VALUES (?,?,?)').run(id, name.trim(), role);
+    ucAudit(req, 'member.create', id, { name: name.trim() });
+  })();
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(id));
 });
 app.put('/api/uc/members/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_members WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { name, role } = req.body || {};
-  ucDb.prepare('UPDATE uc_members SET name=COALESCE(?,name), role=COALESCE(?,role) WHERE id=?')
-    .run(name||null, role||null, req.params.id);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'member.update', id: req.params.id });
+  ucDb.transaction(() => {
+    ucDb.prepare('UPDATE uc_members SET name=COALESCE(?,name), role=COALESCE(?,role) WHERE id=?')
+      .run(name||null, role||null, req.params.id);
+    ucAudit(req, 'member.update', req.params.id);
+  })();
   res.json(ucDb.prepare('SELECT * FROM uc_members WHERE id=?').get(req.params.id));
 });
 app.delete('/api/uc/members/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  const { changes } = ucDb.prepare('DELETE FROM uc_members WHERE id=?').run(req.params.id);
+  let changes = 0;
+  ucDb.transaction(() => {
+    changes = ucDb.prepare('DELETE FROM uc_members WHERE id=?').run(req.params.id).changes;
+    if (changes) ucAudit(req, 'member.delete', req.params.id);
+  })();
   if (!changes) return res.status(404).json({ error: 'not found' });
-  log.info('uc_mutation', { ...auditMeta(req), action: 'member.delete', id: req.params.id });
   res.json({ ok: true });
 });
 
@@ -921,27 +997,40 @@ app.get('/api/uc/subcontractors', requireAuth, (_req, res) =>
   res.json({ subcontractors: ucDb.prepare('SELECT * FROM uc_subcontractors ORDER BY created_at').all() }));
 app.post('/api/uc/subcontractors', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   const { company, trade='', status='active', workers=0 } = req.body || {};
-  if (!company?.trim()) return res.status(400).json({ error: 'company required' });
+  if (!company?.trim()) return res.status(400).json({ errors: ['company required'] });
+  if (status != null && !UC_SUB_STATUSES.has(status))
+    return res.status(400).json({ errors: [`status must be one of: ${[...UC_SUB_STATUSES].join(', ')}`] });
+  if (Number(workers) < 0) return res.status(400).json({ errors: ['workers must be ≥ 0'] });
   const id = ucId();
-  ucDb.prepare('INSERT INTO uc_subcontractors (id,company,trade,status,workers) VALUES (?,?,?,?,?)')
-    .run(id, company.trim(), trade, status, Number(workers)||0);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'subcontractor.create', id });
+  ucDb.transaction(() => {
+    ucDb.prepare('INSERT INTO uc_subcontractors (id,company,trade,status,workers) VALUES (?,?,?,?,?)')
+      .run(id, company.trim(), trade, status, Number(workers)||0);
+    ucAudit(req, 'subcontractor.create', id, { company: company.trim() });
+  })();
   res.status(201).json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(id));
 });
 app.put('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
   if (!ucDb.prepare('SELECT id FROM uc_subcontractors WHERE id=?').get(req.params.id))
     return res.status(404).json({ error: 'not found' });
   const { company, trade, status, workers } = req.body || {};
-  ucDb.prepare(`UPDATE uc_subcontractors SET company=COALESCE(?,company), trade=COALESCE(?,trade),
-    status=COALESCE(?,status), workers=COALESCE(?,workers) WHERE id=?`)
-    .run(company||null, trade||null, status||null, workers??null, req.params.id);
-  log.info('uc_mutation', { ...auditMeta(req), action: 'subcontractor.update', id: req.params.id });
+  if (status != null && !UC_SUB_STATUSES.has(status))
+    return res.status(400).json({ errors: [`status must be one of: ${[...UC_SUB_STATUSES].join(', ')}`] });
+  if (workers != null && Number(workers) < 0) return res.status(400).json({ errors: ['workers must be ≥ 0'] });
+  ucDb.transaction(() => {
+    ucDb.prepare(`UPDATE uc_subcontractors SET company=COALESCE(?,company), trade=COALESCE(?,trade),
+      status=COALESCE(?,status), workers=COALESCE(?,workers) WHERE id=?`)
+      .run(company||null, trade||null, status||null, workers??null, req.params.id);
+    ucAudit(req, 'subcontractor.update', req.params.id);
+  })();
   res.json(ucDb.prepare('SELECT * FROM uc_subcontractors WHERE id=?').get(req.params.id));
 });
 app.delete('/api/uc/subcontractors/:id', requireAuth, requireUcAdmin, mutationLimiter, (req, res) => {
-  const { changes } = ucDb.prepare('DELETE FROM uc_subcontractors WHERE id=?').run(req.params.id);
+  let changes = 0;
+  ucDb.transaction(() => {
+    changes = ucDb.prepare('DELETE FROM uc_subcontractors WHERE id=?').run(req.params.id).changes;
+    if (changes) ucAudit(req, 'subcontractor.delete', req.params.id);
+  })();
   if (!changes) return res.status(404).json({ error: 'not found' });
-  log.info('uc_mutation', { ...auditMeta(req), action: 'subcontractor.delete', id: req.params.id });
   res.json({ ok: true });
 });
 

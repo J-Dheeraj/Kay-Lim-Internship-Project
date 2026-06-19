@@ -121,7 +121,7 @@ See the README for the role/permission matrix.
 ## 5. Backup & restore
 
 All durable state is on the **`klim_state`** volume (`users.json`,
-`revocations.db` + `-wal`/`-shm`, `acc.db`, `idd.db`). The Compose project is named `klim`
+`revocations.db` + `-wal`/`-shm`, `acc.db`, `idd.db`, `uc.db`). The Compose project is named `klim`
 (`name: klim`), so the volume is always `klim_state`.
 
 SQLite is in WAL mode, so a plain copy of `*.db` while a service is writing can
@@ -130,20 +130,25 @@ seconds), snapshot, then start again — Caddy keeps serving:
 
 ```bash
 # Consistent backup (timestamped tarball of the volume)
-docker compose stop acc idd
+docker compose stop app
 docker run --rm -v klim_state:/data -v "$PWD":/backup busybox \
     tar czf /backup/klim-state-$(date +%F).tgz -C /data .
-docker compose start acc idd
+docker compose start app
 
 # Restore (overwrites current state)
 docker compose down
 docker run --rm -v klim_state:/data -v "$PWD":/backup busybox \
-    sh -c 'cd /data && rm -f *.db *.db-wal *.db-shm && tar xzf /backup/klim-state-YYYY-MM-DD.tgz'
+    sh -c 'cd /data && rm -f *.db *.db-wal *.db-shm users.json && tar xzf /backup/klim-state-YYYY-MM-DD.tgz'
 docker compose up -d
 ```
 
-(Zero-downtime alternative: `sqlite3 acc.db ".backup /backup/acc.db"` and same
-for `idd.db` — SQLite's online-backup API needs no stop.)
+(Zero-downtime alternative — SQLite's online-backup API needs no stop:
+```bash
+sqlite3 idd.db ".backup /backup/idd.db"
+sqlite3 uc.db  ".backup /backup/uc.db"
+sqlite3 acc.db ".backup /backup/acc.db"
+```
+)
 
 Schedule the backup via cron. **Test a restore before relying on it** — an
 untested backup is not a backup. The IDD server also writes a JSON snapshot

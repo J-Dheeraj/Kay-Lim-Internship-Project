@@ -97,7 +97,7 @@ RBAC         Four tiers (viewer → inspector → pm/pd → head_of_it/gm/manage
              + feature-scoped admin (hr manages manpower)
 Site scope   Socket.io rooms + DB WHERE clauses enforce per-site isolation
 Rate limits  login: 10/15 min  |  proxy: 30/min  |  mutations: 60/min
-CSP          style-src 'self'; script-src 'self' + pinned CDN hashes
+CSP          style-src 'self'; script-src 'self' + allowed CDN origins; SRI on static scripts
 Static       Explicit sendFile routes only — repository root not served
 Audit        IDD: hash-chained rows  |  UniCon: structured log (actor + IP)
 Secrets      Vendor keys in .env only; never forwarded to browser
@@ -245,7 +245,7 @@ See `DEPLOY.md` for the full operations runbook including GCP setup, user manage
 
 - **No secrets in the browser** — vendor API keys stay in `.env` and are never forwarded to the client.
 - **Explicit static routes** — only named client files are served; the repository root is not exposed via `express.static`.
-- **Content Security Policy** — `style-src 'self'`, `script-src 'self'` + pinned CDN hashes; no `unsafe-inline`.
+- **Content Security Policy** — `style-src 'self'`; `script-src 'self'` + allowed CDN origins with SRI on static scripts (the Power BI client script does not carry SRI); no `unsafe-inline`.
 - **Rate limiting** — mutation routes (IDD and UniCon) are rate-limited. Proxy routes (ACC, Power BI, QSE) have a separate limiter.
 - **Audit trail** — IDD mutations are stored in a hash-chained SQLite table, verifiable via `GET /api/production/audit/verify`. UniCon mutations are logged with actor and IP.
 - **Token revocation** — `POST /api/logout` revokes the token immediately; expired revocation records are pruned hourly.
