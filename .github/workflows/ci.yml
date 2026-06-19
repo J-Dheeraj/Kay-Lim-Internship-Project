@@ -37,18 +37,21 @@ jobs:
   # ── Browser smoke tests (Playwright + Chromium) ───────────────────────────
   smoke:
     runs-on: ubuntu-latest
-    env:
-      # CI-only values — satisfy assertSecureConfig() minimums; not used in production
-      SESSION_SECRET: ci-smoke-session-secret-not-used-in-production-xk9m
-      ADMIN_PASSWORD: ci-smoke-pw-9x2m
-      _SMOKE_PW: ci-smoke-pw-9x2m
-      PORT: 3001
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: '22'
           cache: npm
+      - name: Generate ephemeral CI credentials
+        run: |
+          PW="$(openssl rand -hex 8)"
+          echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "ADMIN_PASSWORD=$PW"                     >> "$GITHUB_ENV"
+          echo "_SMOKE_PW=$PW"                          >> "$GITHUB_ENV"
+          echo "_SMOKE_SECRET=$(openssl rand -hex 32)"  >> "$GITHUB_ENV"
+          echo "_SMOKE_DATA=$(mktemp -d)"               >> "$GITHUB_ENV"
+          echo "PORT=3001"                              >> "$GITHUB_ENV"
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

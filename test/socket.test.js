@@ -44,7 +44,7 @@ function connect(token) {
 }
 
 test('Socket.IO does not leak one site\'s events to another site', async () => {
-  const srv = spawn(process.execPath, ['idd_production_server.js'], {
+  const srv = spawn(process.execPath, ['server.js'], {
     cwd: path.resolve('.'),
     env: { ...process.env, PORT: String(PORT), DATA_DIR: DATA, USERS_FILE: USERS,
            SESSION_SECRET: process.env.SESSION_SECRET, ADMIN_PASSWORD: TEST_PASS },

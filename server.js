@@ -547,13 +547,17 @@ function ucTasksWithProject() {
 // Health — covers all three DBs
 // ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  const identityOk = existsSync(path.join(process.env.DATA_DIR || __dirname, 'users.json'));
-  const iddOk = store.ping();
-  const ok = identityOk && iddOk;
+  const usersPath   = path.join(process.env.DATA_DIR || __dirname, 'users.json');
+  const identityOk  = existsSync(usersPath) || !!process.env.ADMIN_PASSWORD;
+  const iddOk  = store.ping();
+  let ucOk = false, mpOk = false;
+  try { ucOk = !!ucDb.prepare('SELECT 1').get(); } catch {}
+  try { mpOk = !!mpDb.prepare('SELECT 1').get(); } catch {}
+  const ok = identityOk && iddOk && ucOk && mpOk;
   res.status(ok ? 200 : 503).json({
     status: ok ? 'ok' : 'degraded',
     ts: new Date().toISOString(), service: 'app', uptime: process.uptime(),
-    checks: { identity: identityOk, idd: iddOk },
+    checks: { identity: identityOk, idd: iddOk, uc: ucOk, manpower: mpOk },
   });
 });
 
