@@ -14,7 +14,7 @@
 import { test, expect } from '@playwright/test';
 
 const ACC = 'http://127.0.0.1:3001';
-const IDD = 'http://127.0.0.1:3002';
+const IDD = 'http://127.0.0.1:3001/idd';
 const PW  = process.env._SMOKE_PW;
 
 // Collect CSP violation console errors during a page visit
@@ -79,7 +79,7 @@ test.describe('ACC Command Centre', () => {
 
 test.describe('IDD Digital Production', () => {
   test('external JS is served and has correct content-type', async ({ request }) => {
-    const res = await request.get(`${IDD}/idd_production_app.js`);
+    const res = await request.get(`${ACC}/idd_production_app.js`);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toMatch(/javascript/);
   });
