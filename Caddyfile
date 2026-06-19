@@ -6,14 +6,9 @@
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 }
 
-# IDD Production — the IDD server serves its own app + API same-origin.
-idd.{$DOMAIN} {
+# Single unified server — Command Centre at / and IDD Production at /idd,
+# served from the same process on the same port.
+{$DOMAIN}, cc.{$DOMAIN}, idd.{$DOMAIN} {
 	import secure
-	reverse_proxy idd:3002
-}
-
-# Command Centre — the ACC backend serves the dashboard at / and its /api/*.
-{$DOMAIN}, cc.{$DOMAIN} {
-	import secure
-	reverse_proxy acc:3001
+	reverse_proxy app:3001
 }

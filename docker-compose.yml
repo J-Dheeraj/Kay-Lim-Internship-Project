@@ -1,13 +1,11 @@
-# Production-ish deployment: two Node services from one image, behind a Caddy
+# Production-ish deployment: single unified Node service behind a Caddy
 # reverse proxy that auto-provisions Let's Encrypt TLS for your domain.
 #
-#   https://${DOMAIN}        + https://cc.${DOMAIN}   -> Command Centre  (acc :3001)
-#   https://idd.${DOMAIN}                             -> IDD Production  (idd :3002)
+#   https://${DOMAIN}        + https://cc.${DOMAIN}   -> Command Centre  (/  )
+#   https://idd.${DOMAIN}                             -> IDD Production  (/idd)
 #
-# Both services SHARE identity: the same SESSION_SECRET (env) and the same
-# users.json / revocations.db on the shared `state` volume, so a token or a
-# revocation is valid on either service. Each service keeps its own SQLite DB
-# (acc.db / idd.db) on that same volume.
+# All apps served from one process (server.js) on port 3001.
+# Identity is shared via the `state` volume (users.json, session tokens, SQLite DBs).
 #
 # Copy .env.deploy.example -> .env, fill it in, point DNS at the host, then:
 #   docker compose up -d --build
@@ -17,9 +15,9 @@
 name: klim
 
 services:
-  acc:
+  app:
     build: .
-    command: node acc_backend_server.js
+    command: node server.js
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -31,7 +29,7 @@ services:
       DATA_DIR: /data
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
-      ALLOWED_ORIGINS: "https://${DOMAIN},https://cc.${DOMAIN}"
+      ALLOWED_ORIGINS: "https://${DOMAIN},https://cc.${DOMAIN},https://idd.${DOMAIN}"
       INTEGRATIONS_STRICT: ${INTEGRATIONS_STRICT:-1}
       # Vendor credentials (optional — left blank serves mock / not-configured).
       APS_CLIENT_ID: ${APS_CLIENT_ID:-}
@@ -53,25 +51,6 @@ services:
       - state:/data
     restart: unless-stopped
 
-  idd:
-    build: .
-    command: node idd_production_server.js
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    environment:
-      PORT: 3002
-      DATA_DIR: /data
-      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
-      ALLOWED_ORIGIN: "https://idd.${DOMAIN}"
-    volumes:
-      - state:/data
-    restart: unless-stopped
-
   caddy:
     image: caddy:2.8.4@sha256:b95ed06fbc6d74d24a40902090c8cc6086ce7d08ba60a3a7e8e62bf164a9d7bb
     ports:
@@ -84,8 +63,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - acc
-      - idd
+      - app
     restart: unless-stopped
 
 volumes:
